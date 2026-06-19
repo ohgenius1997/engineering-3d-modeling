@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engineering-3d-modeling.review_manifest.v1",
+  "type": "object",
+  "required": ["schema", "project", "versions", "parts", "parameters", "refs"],
+  "properties": {
+    "schema": {"const": "engineering-3d-modeling.review_manifest.v1"},
+    "project": {
+      "type": "object",
+      "required": ["name", "kind", "units"],
+      "properties": {
+        "name": {"type": "string"},
+        "kind": {"type": "string", "enum": ["part", "assembly"]},
+        "units": {"type": "string"}
+      }
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "current": {"type": ["object", "null"]},
+        "previous": {"type": ["object", "null"]}
+      }
+    },
+    "preview": {
+      "type": "object",
+      "properties": {
+        "mesh_json": {"type": ["string", "null"]},
+        "mesh_closed": {"type": "boolean"}
+      }
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "visible": {"type": "boolean"},
+          "thumbnail": {"type": "string"},
+          "thumbnail_url": {"type": "string"},
+          "preview": {"type": "string"}
+        }
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "value", "preview"],
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "value": {"type": ["number", "string", "boolean"]},
+          "unit": {"type": "string"},
+          "role": {"type": "string"},
+          "min": {"type": "number"},
+          "max": {"type": "number"},
+          "step": {"type": "number"},
+          "preview": {
+            "type": "object",
+            "properties": {
+              "effect": {"type": "string", "enum": ["scale_axis", "scale_radial", "scale_uniform", "offset_axis", "offset_radial", "twist_z", "ripple_radial", "generic_morph"]},
+              "axis": {"type": "string", "enum": ["x", "y", "z"]},
+              "axes": {
+                "type": "array",
+                "items": {"type": "string", "enum": ["x", "y", "z"]}
+              },
+              "baseline": {"type": "number"},
+              "anchor": {"type": "string", "enum": ["center", "origin"]},
+              "origin": {"$ref": "#/$defs/vec3"},
+              "factor": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+    "refs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/ref"}
+    }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "items": {"type": "number"},
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "ref": {
+      "type": "object",
+      "required": ["id", "entity_type"],
+      "properties": {
+        "id": {"type": "string"},
+        "part_id": {"type": "string"},
+        "entity_type": {"type": "string", "enum": ["part", "face", "edge", "vertex", "feature"]},
+        "feature_id": {"type": "string"},
+        "label": {"type": "string"},
+        "world_point": {"$ref": "#/$defs/vec3"},
+        "normal": {"$ref": "#/$defs/vec3"}
+      }
+    }
+  }
+}

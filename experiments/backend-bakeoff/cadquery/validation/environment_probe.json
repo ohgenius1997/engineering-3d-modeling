@@ -1,0 +1,17 @@
+{
+  "status": "pass",
+  "cadquery_version": "2.7.0",
+  "python": "3.12.13 (main, Mar  3 2026, 15:35:03) [Clang 21.1.4 ]",
+  "platform": "macOS-26.5-arm64-arm-64bit",
+  "pyyaml_version": "6.0.3",
+  "package_dir": ".python-packages",
+  "bbox_mm": {
+    "x": 10.0,
+    "y": 20.0,
+    "z": 3.0
+  },
+  "outputs": [
+    "outputs/env_probe/cadquery_env_box.step",
+    "outputs/env_probe/cadquery_env_box.stl"
+  ]
+}

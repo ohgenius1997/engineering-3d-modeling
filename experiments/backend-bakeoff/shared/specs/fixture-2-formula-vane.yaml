@@ -1,0 +1,132 @@
+schema_version: engineering_3d_fixture.v0
+fixture_id: fixture-2-formula-vane
+title: Formula-driven guide vane section
+kind: formula_driven_part
+units: mm
+intent: >
+  Create a small guide-vane or duct section from explicit analytical definitions.
+  The test emphasizes formula handling, sampled validation, and diagnostics before
+  full CAD generation.
+coordinate_system:
+  origin: duct_axis_start
+  axes:
+    x: duct_axis
+    y: lateral
+    z: vertical
+parameters:
+  duct_length:
+    value: 80
+    unit: mm
+    min: 40
+    max: 160
+  inlet_radius:
+    value: 28
+    unit: mm
+    min: 10
+    max: 80
+  outlet_radius:
+    value: 22
+    unit: mm
+    min: 10
+    max: 80
+  wall_thickness:
+    value: 2
+    unit: mm
+    ui: numeric
+    min: 1
+    max: 5
+  vane_count:
+    value: 5
+    unit: count
+    min: 3
+    max: 12
+  vane_chord:
+    value: 26
+    unit: mm
+    min: 8
+    max: 60
+  vane_span:
+    value: 18
+    unit: mm
+    min: 5
+    max: 60
+  naca_thickness_ratio:
+    value: 0.12
+    unit: ratio
+    min: 0.06
+    max: 0.18
+  inlet_angle_deg:
+    value: 18
+    unit: deg
+    min: -45
+    max: 45
+  outlet_angle_deg:
+    value: 34
+    unit: deg
+    min: -60
+    max: 60
+  section_count:
+    value: 9
+    unit: count
+    min: 5
+    max: 25
+analytical_definitions:
+  duct_radius_law:
+    id: quintic_smoothstep_radius
+    independent_variable: t
+    domain: [0, 1]
+    formula: r(t) = inlet_radius + (outlet_radius - inlet_radius) * (10*t^3 - 15*t^4 + 6*t^5)
+    boundary_conditions:
+      - r(0) = inlet_radius
+      - r(1) = outlet_radius
+      - dr/dt at t=0 is 0
+      - dr/dt at t=1 is 0
+  vane_profile:
+    id: naca_0012_symmetric
+    formula_family: naca_4_digit_symmetric
+    thickness_ratio_parameter: naca_thickness_ratio
+    chord_parameter: vane_chord
+    expected_behavior:
+      - maximum_thickness_is_about_thickness_ratio_times_chord
+      - profile_is_symmetric_about_chord_line
+  vane_twist_law:
+    id: linear_angle_interpolation
+    formula: angle(t) = inlet_angle_deg + (outlet_angle_deg - inlet_angle_deg) * t
+generated_geometry:
+  required:
+    - duct_shell_or_solid_reference_geometry
+    - vane_solids_or_clearly_reported_surface_limitation
+  placement:
+    vane_count: vane_count
+    around_axis: x
+    section_count: section_count
+acceptance:
+  formula_checks:
+    sample_count_min: 11
+    radius_law_tolerance: 0.001
+    naca_profile_checks:
+      chord_tolerance: 0.05
+      symmetry_tolerance: 0.05
+      max_thickness_tolerance: 0.25
+  cad_checks:
+    - Generate valid solid geometry if supported by the backend.
+    - If only surface or mesh output is practical, report that limitation explicitly.
+    - Reject or warn on self-intersecting vane/domain parameter combinations.
+  exports:
+    preferred:
+      - step
+      - stl
+      - gltf
+    required_minimum:
+      - one inspectable geometry artifact
+diagnostics:
+  must_report:
+    - formula domain errors
+    - invalid thickness ratio
+    - failed loft or sweep operation
+    - solid validity failures
+iteration_case:
+  description: Change outlet_angle_deg to 42 and wall_thickness to 2.5, then regenerate.
+  expected_agent_behavior:
+    - Keep formulas named and inspectable.
+    - Re-run formula sampling before CAD generation.

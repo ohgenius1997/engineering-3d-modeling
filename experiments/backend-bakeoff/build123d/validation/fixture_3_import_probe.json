@@ -1,0 +1,21 @@
+{
+  "fixture": "fixture-3-powerbank-enclosure",
+  "status": "probe_only",
+  "cad_path": "shared/inputs/cad/charge_discharge_module/module.step",
+  "cad_exists": true,
+  "imported": true,
+  "fallback_used": false,
+  "notes": [
+    "STEP import/probe completed; no generated enclosure/collision validation was attempted in this prioritized run.",
+    "Imported STEP shape reports invalid via build123d/OCP validity check."
+  ],
+  "outputs": [
+    "outputs/fixture_3/module_import_probe_copy.step"
+  ],
+  "bbox_mm": {
+    "x": 28.0461,
+    "y": 18.4964,
+    "z": 5.1914
+  },
+  "valid": false
+}

@@ -1,0 +1,2226 @@
+{
+  "fixture": "fixture_5",
+  "status": "pass",
+  "backend": "build123d",
+  "backend_version": "0.10.0",
+  "python": "3.12.13",
+  "source_spec": "../shared/specs/fixture-5-handheld-fan.yaml",
+  "cases": {
+    "baseline": {
+      "parameters": {
+        "wall_thickness": 2.0,
+        "fan_clearance": 1.0,
+        "battery_clearance": 0.8,
+        "electronics_clearance": 0.8,
+        "switch_clearance": 0.6,
+        "shell_split_gap": 0.3,
+        "head_outer_radius": 28.0,
+        "handle_width": 44.0,
+        "handle_length": 92.0,
+        "front_grille_spoke_count": 8.0,
+        "front_grille_ring_radius": 18.0,
+        "screw_boss_outer_diameter": 5.2,
+        "screw_clearance_diameter": 2.2,
+        "switch_wheel_diameter": 18.0,
+        "switch_side_sign": 1.0,
+        "switch_offset_y": -12.0
+      },
+      "layout": {
+        "parameters": {
+          "wall_thickness": 2.0,
+          "fan_clearance": 1.0,
+          "battery_clearance": 0.8,
+          "electronics_clearance": 0.8,
+          "switch_clearance": 0.6,
+          "shell_split_gap": 0.3,
+          "head_outer_radius": 28.0,
+          "handle_width": 44.0,
+          "handle_length": 92.0,
+          "front_grille_spoke_count": 8.0,
+          "front_grille_ring_radius": 18.0,
+          "screw_boss_outer_diameter": 5.2,
+          "screw_clearance_diameter": 2.2,
+          "switch_wheel_diameter": 18.0,
+          "switch_side_sign": 1.0,
+          "switch_offset_y": -12.0
+        },
+        "iteration_mode": "baseline",
+        "outer_dimensions_mm": {
+          "x": 60.0,
+          "y": 150.0,
+          "z": 58.0
+        },
+        "inner_envelope": {
+          "min_x": -28.0,
+          "max_x": 28.0,
+          "min_y": -84.0,
+          "max_y": 62.0,
+          "min_z": -27.0,
+          "max_z": 27.0,
+          "size_x": 56.0,
+          "size_y": 146.0,
+          "size_z": 54.0
+        },
+        "outer_envelope": {
+          "min_x": -30.0,
+          "max_x": 30.0,
+          "min_y": -86.0,
+          "max_y": 64.0,
+          "min_z": -29.0,
+          "max_z": 29.0,
+          "size_x": 60.0,
+          "size_y": 150.0,
+          "size_z": 58.0
+        },
+        "placements": {
+          "fan_center": {
+            "x": 0.0,
+            "y": 36.0,
+            "z": 0.0
+          },
+          "handle_center": {
+            "x": 0.0,
+            "y": -32.0,
+            "z": 0.0
+          },
+          "switch_center": {
+            "x": 34.5,
+            "y": -22.0,
+            "z": 6.0
+          },
+          "switch_side": "right"
+        },
+        "components": {
+          "fan_4028": {
+            "center": {
+              "x": 0.0,
+              "y": 36.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              42.0,
+              42.0,
+              30.0
+            ],
+            "bounds": {
+              "min_x": -21.0,
+              "max_x": 21.0,
+              "min_y": 15.0,
+              "max_y": 57.0,
+              "min_z": -15.0,
+              "max_z": 15.0,
+              "size_x": 42.0,
+              "size_y": 42.0,
+              "size_z": 30.0
+            },
+            "required_clearance": "fan_clearance"
+          },
+          "battery_left_18650": {
+            "center": {
+              "x": -10.5,
+              "y": -43.5,
+              "z": -9.0
+            },
+            "dimensions_mm": [
+              18.6,
+              65.0,
+              18.6
+            ],
+            "bounds": {
+              "min_x": -19.8,
+              "max_x": -1.2,
+              "min_y": -76.0,
+              "max_y": -11.0,
+              "min_z": -18.3,
+              "max_z": 0.3,
+              "size_x": 18.6,
+              "size_y": 65.0,
+              "size_z": 18.6
+            },
+            "required_clearance": "battery_clearance"
+          },
+          "battery_right_18650": {
+            "center": {
+              "x": 10.5,
+              "y": -43.5,
+              "z": -9.0
+            },
+            "dimensions_mm": [
+              18.6,
+              65.0,
+              18.6
+            ],
+            "bounds": {
+              "min_x": 1.2,
+              "max_x": 19.8,
+              "min_y": -76.0,
+              "max_y": -11.0,
+              "min_z": -18.3,
+              "max_z": 0.3,
+              "size_x": 18.6,
+              "size_y": 65.0,
+              "size_z": 18.6
+            },
+            "required_clearance": "battery_clearance"
+          },
+          "pwm_controller_board": {
+            "center": {
+              "x": -6.0,
+              "y": -10.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              26.0,
+              34.0,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -19.0,
+              "max_x": 7.0,
+              "min_y": -27.0,
+              "max_y": 7.0,
+              "min_z": 3.0,
+              "max_z": 11.0,
+              "size_x": 26.0,
+              "size_y": 34.0,
+              "size_z": 8.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "battery_protection_board": {
+            "center": {
+              "x": 16.0,
+              "y": -38.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              18.0,
+              45.0,
+              5.0
+            ],
+            "bounds": {
+              "min_x": 7.0,
+              "max_x": 25.0,
+              "min_y": -60.5,
+              "max_y": -15.5,
+              "min_z": 4.5,
+              "max_z": 9.5,
+              "size_x": 18.0,
+              "size_y": 45.0,
+              "size_z": 5.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "charge_module": {
+            "center": {
+              "x": 0.0,
+              "y": -73.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              28.0,
+              18.0,
+              6.0
+            ],
+            "bounds": {
+              "min_x": -14.0,
+              "max_x": 14.0,
+              "min_y": -82.0,
+              "max_y": -64.0,
+              "min_z": 4.0,
+              "max_z": 10.0,
+              "size_x": 28.0,
+              "size_y": 18.0,
+              "size_z": 6.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "boost_output_module": {
+            "center": {
+              "x": 9.0,
+              "y": -28.0,
+              "z": 18.5
+            },
+            "dimensions_mm": [
+              22.0,
+              30.0,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -2.0,
+              "max_x": 20.0,
+              "min_y": -43.0,
+              "max_y": -13.0,
+              "min_z": 14.5,
+              "max_z": 22.5,
+              "size_x": 22.0,
+              "size_y": 30.0,
+              "size_z": 8.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "switch_thumbwheel": {
+            "center": {
+              "x": 34.5,
+              "y": -22.0,
+              "z": 6.0
+            },
+            "dimensions_mm": [
+              5.0,
+              18.0,
+              18.0
+            ],
+            "bounds": {
+              "min_x": 32.0,
+              "max_x": 37.0,
+              "min_y": -31.0,
+              "max_y": -13.0,
+              "min_z": -3.0,
+              "max_z": 15.0,
+              "size_x": 5.0,
+              "size_y": 18.0,
+              "size_z": 18.0
+            },
+            "required_clearance": "switch_clearance"
+          },
+          "switch_drive_gear": {
+            "center": {
+              "x": 25.4,
+              "y": -22.0,
+              "z": 6.0
+            },
+            "dimensions_mm": [
+              4.0,
+              14.0,
+              14.0
+            ],
+            "bounds": {
+              "min_x": 23.4,
+              "max_x": 27.4,
+              "min_y": -29.0,
+              "max_y": -15.0,
+              "min_z": -1.0,
+              "max_z": 13.0,
+              "size_x": 4.0,
+              "size_y": 14.0,
+              "size_z": 14.0
+            },
+            "required_clearance": "switch_clearance"
+          }
+        },
+        "generated_feature_bounds": {
+          "front_shell_slab": {
+            "center": {
+              "x": 0.0,
+              "y": -8.0,
+              "z": 28.0
+            },
+            "dimensions_mm": [
+              60.0,
+              150.0,
+              2.0
+            ],
+            "bounds": {
+              "min_x": -30.0,
+              "max_x": 30.0,
+              "min_y": -83.0,
+              "max_y": 67.0,
+              "min_z": 27.0,
+              "max_z": 29.0,
+              "size_x": 60.0,
+              "size_y": 150.0,
+              "size_z": 2.0
+            }
+          },
+          "rear_shell_slab": {
+            "center": {
+              "x": 0.0,
+              "y": -8.0,
+              "z": -28.0
+            },
+            "dimensions_mm": [
+              60.0,
+              150.0,
+              2.0
+            ],
+            "bounds": {
+              "min_x": -30.0,
+              "max_x": 30.0,
+              "min_y": -83.0,
+              "max_y": 67.0,
+              "min_z": -29.0,
+              "max_z": -27.0,
+              "size_x": 60.0,
+              "size_y": 150.0,
+              "size_z": 2.0
+            }
+          },
+          "battery_left_rail": {
+            "center": {
+              "x": -10.5,
+              "y": -43.5,
+              "z": -19.2
+            },
+            "dimensions_mm": [
+              22.0,
+              66.0,
+              1.6
+            ],
+            "bounds": {
+              "min_x": -21.5,
+              "max_x": 0.5,
+              "min_y": -76.5,
+              "max_y": -10.5,
+              "min_z": -20.0,
+              "max_z": -18.4,
+              "size_x": 22.0,
+              "size_y": 66.0,
+              "size_z": 1.6
+            }
+          },
+          "battery_right_rail": {
+            "center": {
+              "x": 10.5,
+              "y": -43.5,
+              "z": -19.2
+            },
+            "dimensions_mm": [
+              22.0,
+              66.0,
+              1.6
+            ],
+            "bounds": {
+              "min_x": -0.5,
+              "max_x": 21.5,
+              "min_y": -76.5,
+              "max_y": -10.5,
+              "min_z": -20.0,
+              "max_z": -18.4,
+              "size_x": 22.0,
+              "size_y": 66.0,
+              "size_z": 1.6
+            }
+          },
+          "pcb_shelf": {
+            "center": {
+              "x": -4.0,
+              "y": -36.0,
+              "z": 2.1
+            },
+            "dimensions_mm": [
+              38.0,
+              72.0,
+              1.4
+            ],
+            "bounds": {
+              "min_x": -23.0,
+              "max_x": 15.0,
+              "min_y": -72.0,
+              "max_y": 0.0,
+              "min_z": 1.4,
+              "max_z": 2.8,
+              "size_x": 38.0,
+              "size_y": 72.0,
+              "size_z": 1.4
+            }
+          },
+          "head_screw_boss_1": {
+            "center": {
+              "x": -24.0,
+              "y": 60.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -26.6,
+              "max_x": -21.4,
+              "min_y": 57.4,
+              "max_y": 62.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_2": {
+            "center": {
+              "x": 24.0,
+              "y": 60.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 21.4,
+              "max_x": 26.6,
+              "min_y": 57.4,
+              "max_y": 62.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_3": {
+            "center": {
+              "x": -24.0,
+              "y": 15.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -26.6,
+              "max_x": -21.4,
+              "min_y": 12.4,
+              "max_y": 17.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_4": {
+            "center": {
+              "x": 24.0,
+              "y": 15.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 21.4,
+              "max_x": 26.6,
+              "min_y": 12.4,
+              "max_y": 17.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "handle_screw_boss_1": {
+            "center": {
+              "x": -22.0,
+              "y": -80.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -24.6,
+              "max_x": -19.4,
+              "min_y": -82.6,
+              "max_y": -77.4,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "handle_screw_boss_2": {
+            "center": {
+              "x": 22.0,
+              "y": -80.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 19.4,
+              "max_x": 24.6,
+              "min_y": -82.6,
+              "max_y": -77.4,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "charge_port_marker": {
+            "center": {
+              "x": 0.0,
+              "y": -86.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              12.0,
+              3.0,
+              7.0
+            ],
+            "bounds": {
+              "min_x": -6.0,
+              "max_x": 6.0,
+              "min_y": -87.5,
+              "max_y": -84.5,
+              "min_z": 3.5,
+              "max_z": 10.5,
+              "size_x": 12.0,
+              "size_y": 3.0,
+              "size_z": 7.0
+            }
+          }
+        },
+        "checks": {
+          "containment": {
+            "fan_4028": true,
+            "battery_left_18650": true,
+            "battery_right_18650": true,
+            "pwm_controller_board": true,
+            "battery_protection_board": true,
+            "charge_module": true,
+            "boost_output_module": true
+          },
+          "clearance": {
+            "fan_4028": {
+              "required_mm": 1.0,
+              "actual_min_to_inner_envelope_mm": 5.0,
+              "pass": true
+            },
+            "battery_left_18650": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "pass": true
+            },
+            "battery_right_18650": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "pass": true
+            },
+            "pwm_controller_board": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 9.0,
+              "pass": true
+            },
+            "battery_protection_board": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 3.0,
+              "pass": true
+            },
+            "charge_module": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 2.0,
+              "pass": true
+            },
+            "boost_output_module": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 4.5,
+              "pass": true
+            }
+          },
+          "fixed_components_do_not_intersect": true,
+          "fixed_component_intersections": [],
+          "generated_features_do_not_intersect_fixed_components": true,
+          "generated_feature_intersections": [],
+          "fan_centered_in_head": true,
+          "battery_pair_separated": true,
+          "battery_pair_gap_mm": 2.4,
+          "battery_cylinder_like_clearance": {
+            "battery_left_18650": {
+              "axis": "y",
+              "radius_mm": 9.3,
+              "length_mm": 65.0,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "required_mm": 0.8,
+              "pass": true
+            },
+            "battery_right_18650": {
+              "axis": "y",
+              "radius_mm": 9.3,
+              "length_mm": 65.0,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "required_mm": 0.8,
+              "pass": true
+            }
+          },
+          "battery_cylinder_like_clearance_pass": true,
+          "handle_screw_bosses_do_not_intersect_batteries": true,
+          "handle_screw_boss_battery_intersections": [],
+          "charge_port_marker_aligned": true,
+          "switch_mechanism_near_pwm": true,
+          "switch_distance_y_mm": 12.0,
+          "switch_side_matches_parameter": true
+        },
+        "all_hard_checks_pass": true
+      },
+      "generated_geometry": {
+        "front_shell": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 56.0,
+            "y": 142.0,
+            "z": 2.0
+          }
+        },
+        "front_grille": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 36.0,
+            "y": 42.0,
+            "z": 2.0
+          }
+        },
+        "rear_shell": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 56.0,
+            "y": 151.5,
+            "z": 39.5
+          }
+        },
+        "internal_frame": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 53.2,
+            "y": 145.2,
+            "z": 24.0
+          }
+        },
+        "switch_mechanism": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 13.6,
+            "y": 18.0,
+            "z": 18.0
+          }
+        },
+        "component_envelopes": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 46.0,
+            "y": 139.0,
+            "z": 40.8
+          }
+        }
+      },
+      "outputs": [
+        "outputs/fixture_5_handheld_fan/baseline/front_shell.step",
+        "outputs/fixture_5_handheld_fan/baseline/front_shell.stl",
+        "outputs/fixture_5_handheld_fan/baseline/front_grille.step",
+        "outputs/fixture_5_handheld_fan/baseline/front_grille.stl",
+        "outputs/fixture_5_handheld_fan/baseline/rear_shell.step",
+        "outputs/fixture_5_handheld_fan/baseline/rear_shell.stl",
+        "outputs/fixture_5_handheld_fan/baseline/internal_frame.step",
+        "outputs/fixture_5_handheld_fan/baseline/internal_frame.stl",
+        "outputs/fixture_5_handheld_fan/baseline/switch_mechanism.step",
+        "outputs/fixture_5_handheld_fan/baseline/switch_mechanism.stl",
+        "outputs/fixture_5_handheld_fan/baseline/component_envelopes.step"
+      ],
+      "status": "pass"
+    },
+    "edited": {
+      "parameters": {
+        "wall_thickness": 2.4,
+        "fan_clearance": 1.5,
+        "battery_clearance": 0.8,
+        "electronics_clearance": 1.2,
+        "switch_clearance": 0.6,
+        "shell_split_gap": 0.3,
+        "head_outer_radius": 28.0,
+        "handle_width": 44.0,
+        "handle_length": 92.0,
+        "front_grille_spoke_count": 8.0,
+        "front_grille_ring_radius": 18.0,
+        "screw_boss_outer_diameter": 5.2,
+        "screw_clearance_diameter": 2.2,
+        "switch_wheel_diameter": 18.0,
+        "switch_side_sign": 1.0,
+        "switch_offset_y": -8.0
+      },
+      "layout": {
+        "parameters": {
+          "wall_thickness": 2.4,
+          "fan_clearance": 1.5,
+          "battery_clearance": 0.8,
+          "electronics_clearance": 1.2,
+          "switch_clearance": 0.6,
+          "shell_split_gap": 0.3,
+          "head_outer_radius": 28.0,
+          "handle_width": 44.0,
+          "handle_length": 92.0,
+          "front_grille_spoke_count": 8.0,
+          "front_grille_ring_radius": 18.0,
+          "screw_boss_outer_diameter": 5.2,
+          "screw_clearance_diameter": 2.2,
+          "switch_wheel_diameter": 18.0,
+          "switch_side_sign": 1.0,
+          "switch_offset_y": -8.0
+        },
+        "iteration_mode": "edited",
+        "outer_dimensions_mm": {
+          "x": 60.0,
+          "y": 150.0,
+          "z": 58.0
+        },
+        "inner_envelope": {
+          "min_x": -27.6,
+          "max_x": 27.6,
+          "min_y": -83.6,
+          "max_y": 61.6,
+          "min_z": -26.6,
+          "max_z": 26.6,
+          "size_x": 55.2,
+          "size_y": 145.2,
+          "size_z": 53.2
+        },
+        "outer_envelope": {
+          "min_x": -30.0,
+          "max_x": 30.0,
+          "min_y": -86.0,
+          "max_y": 64.0,
+          "min_z": -29.0,
+          "max_z": 29.0,
+          "size_x": 60.0,
+          "size_y": 150.0,
+          "size_z": 58.0
+        },
+        "placements": {
+          "fan_center": {
+            "x": 0.0,
+            "y": 36.0,
+            "z": 0.0
+          },
+          "handle_center": {
+            "x": 0.0,
+            "y": -32.0,
+            "z": 0.0
+          },
+          "switch_center": {
+            "x": 34.5,
+            "y": -18.0,
+            "z": 6.0
+          },
+          "switch_side": "right"
+        },
+        "components": {
+          "fan_4028": {
+            "center": {
+              "x": 0.0,
+              "y": 36.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              42.0,
+              42.0,
+              30.0
+            ],
+            "bounds": {
+              "min_x": -21.0,
+              "max_x": 21.0,
+              "min_y": 15.0,
+              "max_y": 57.0,
+              "min_z": -15.0,
+              "max_z": 15.0,
+              "size_x": 42.0,
+              "size_y": 42.0,
+              "size_z": 30.0
+            },
+            "required_clearance": "fan_clearance"
+          },
+          "battery_left_18650": {
+            "center": {
+              "x": -10.5,
+              "y": -43.5,
+              "z": -9.0
+            },
+            "dimensions_mm": [
+              18.6,
+              65.0,
+              18.6
+            ],
+            "bounds": {
+              "min_x": -19.8,
+              "max_x": -1.2,
+              "min_y": -76.0,
+              "max_y": -11.0,
+              "min_z": -18.3,
+              "max_z": 0.3,
+              "size_x": 18.6,
+              "size_y": 65.0,
+              "size_z": 18.6
+            },
+            "required_clearance": "battery_clearance"
+          },
+          "battery_right_18650": {
+            "center": {
+              "x": 10.5,
+              "y": -43.5,
+              "z": -9.0
+            },
+            "dimensions_mm": [
+              18.6,
+              65.0,
+              18.6
+            ],
+            "bounds": {
+              "min_x": 1.2,
+              "max_x": 19.8,
+              "min_y": -76.0,
+              "max_y": -11.0,
+              "min_z": -18.3,
+              "max_z": 0.3,
+              "size_x": 18.6,
+              "size_y": 65.0,
+              "size_z": 18.6
+            },
+            "required_clearance": "battery_clearance"
+          },
+          "pwm_controller_board": {
+            "center": {
+              "x": -6.0,
+              "y": -10.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              26.0,
+              34.0,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -19.0,
+              "max_x": 7.0,
+              "min_y": -27.0,
+              "max_y": 7.0,
+              "min_z": 3.0,
+              "max_z": 11.0,
+              "size_x": 26.0,
+              "size_y": 34.0,
+              "size_z": 8.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "battery_protection_board": {
+            "center": {
+              "x": 16.0,
+              "y": -38.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              18.0,
+              45.0,
+              5.0
+            ],
+            "bounds": {
+              "min_x": 7.0,
+              "max_x": 25.0,
+              "min_y": -60.5,
+              "max_y": -15.5,
+              "min_z": 4.5,
+              "max_z": 9.5,
+              "size_x": 18.0,
+              "size_y": 45.0,
+              "size_z": 5.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "charge_module": {
+            "center": {
+              "x": 0.0,
+              "y": -73.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              28.0,
+              18.0,
+              6.0
+            ],
+            "bounds": {
+              "min_x": -14.0,
+              "max_x": 14.0,
+              "min_y": -82.0,
+              "max_y": -64.0,
+              "min_z": 4.0,
+              "max_z": 10.0,
+              "size_x": 28.0,
+              "size_y": 18.0,
+              "size_z": 6.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "boost_output_module": {
+            "center": {
+              "x": 9.0,
+              "y": -28.0,
+              "z": 18.5
+            },
+            "dimensions_mm": [
+              22.0,
+              30.0,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -2.0,
+              "max_x": 20.0,
+              "min_y": -43.0,
+              "max_y": -13.0,
+              "min_z": 14.5,
+              "max_z": 22.5,
+              "size_x": 22.0,
+              "size_y": 30.0,
+              "size_z": 8.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "switch_thumbwheel": {
+            "center": {
+              "x": 34.5,
+              "y": -18.0,
+              "z": 6.0
+            },
+            "dimensions_mm": [
+              5.0,
+              18.0,
+              18.0
+            ],
+            "bounds": {
+              "min_x": 32.0,
+              "max_x": 37.0,
+              "min_y": -27.0,
+              "max_y": -9.0,
+              "min_z": -3.0,
+              "max_z": 15.0,
+              "size_x": 5.0,
+              "size_y": 18.0,
+              "size_z": 18.0
+            },
+            "required_clearance": "switch_clearance"
+          },
+          "switch_drive_gear": {
+            "center": {
+              "x": 25.0,
+              "y": -18.0,
+              "z": 6.0
+            },
+            "dimensions_mm": [
+              4.0,
+              14.0,
+              14.0
+            ],
+            "bounds": {
+              "min_x": 23.0,
+              "max_x": 27.0,
+              "min_y": -25.0,
+              "max_y": -11.0,
+              "min_z": -1.0,
+              "max_z": 13.0,
+              "size_x": 4.0,
+              "size_y": 14.0,
+              "size_z": 14.0
+            },
+            "required_clearance": "switch_clearance"
+          }
+        },
+        "generated_feature_bounds": {
+          "front_shell_slab": {
+            "center": {
+              "x": 0.0,
+              "y": -8.0,
+              "z": 27.8
+            },
+            "dimensions_mm": [
+              60.0,
+              150.0,
+              2.4
+            ],
+            "bounds": {
+              "min_x": -30.0,
+              "max_x": 30.0,
+              "min_y": -83.0,
+              "max_y": 67.0,
+              "min_z": 26.6,
+              "max_z": 29.0,
+              "size_x": 60.0,
+              "size_y": 150.0,
+              "size_z": 2.4
+            }
+          },
+          "rear_shell_slab": {
+            "center": {
+              "x": 0.0,
+              "y": -8.0,
+              "z": -27.8
+            },
+            "dimensions_mm": [
+              60.0,
+              150.0,
+              2.4
+            ],
+            "bounds": {
+              "min_x": -30.0,
+              "max_x": 30.0,
+              "min_y": -83.0,
+              "max_y": 67.0,
+              "min_z": -29.0,
+              "max_z": -26.6,
+              "size_x": 60.0,
+              "size_y": 150.0,
+              "size_z": 2.4
+            }
+          },
+          "battery_left_rail": {
+            "center": {
+              "x": -10.5,
+              "y": -43.5,
+              "z": -19.2
+            },
+            "dimensions_mm": [
+              22.0,
+              66.0,
+              1.6
+            ],
+            "bounds": {
+              "min_x": -21.5,
+              "max_x": 0.5,
+              "min_y": -76.5,
+              "max_y": -10.5,
+              "min_z": -20.0,
+              "max_z": -18.4,
+              "size_x": 22.0,
+              "size_y": 66.0,
+              "size_z": 1.6
+            }
+          },
+          "battery_right_rail": {
+            "center": {
+              "x": 10.5,
+              "y": -43.5,
+              "z": -19.2
+            },
+            "dimensions_mm": [
+              22.0,
+              66.0,
+              1.6
+            ],
+            "bounds": {
+              "min_x": -0.5,
+              "max_x": 21.5,
+              "min_y": -76.5,
+              "max_y": -10.5,
+              "min_z": -20.0,
+              "max_z": -18.4,
+              "size_x": 22.0,
+              "size_y": 66.0,
+              "size_z": 1.6
+            }
+          },
+          "pcb_shelf": {
+            "center": {
+              "x": -4.0,
+              "y": -36.0,
+              "z": 2.1
+            },
+            "dimensions_mm": [
+              38.0,
+              72.0,
+              1.4
+            ],
+            "bounds": {
+              "min_x": -23.0,
+              "max_x": 15.0,
+              "min_y": -72.0,
+              "max_y": 0.0,
+              "min_z": 1.4,
+              "max_z": 2.8,
+              "size_x": 38.0,
+              "size_y": 72.0,
+              "size_z": 1.4
+            }
+          },
+          "head_screw_boss_1": {
+            "center": {
+              "x": -24.0,
+              "y": 60.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -26.6,
+              "max_x": -21.4,
+              "min_y": 57.4,
+              "max_y": 62.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_2": {
+            "center": {
+              "x": 24.0,
+              "y": 60.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 21.4,
+              "max_x": 26.6,
+              "min_y": 57.4,
+              "max_y": 62.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_3": {
+            "center": {
+              "x": -24.0,
+              "y": 15.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -26.6,
+              "max_x": -21.4,
+              "min_y": 12.4,
+              "max_y": 17.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_4": {
+            "center": {
+              "x": 24.0,
+              "y": 15.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 21.4,
+              "max_x": 26.6,
+              "min_y": 12.4,
+              "max_y": 17.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "handle_screw_boss_1": {
+            "center": {
+              "x": -22.0,
+              "y": -80.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -24.6,
+              "max_x": -19.4,
+              "min_y": -82.6,
+              "max_y": -77.4,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "handle_screw_boss_2": {
+            "center": {
+              "x": 22.0,
+              "y": -80.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 19.4,
+              "max_x": 24.6,
+              "min_y": -82.6,
+              "max_y": -77.4,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "charge_port_marker": {
+            "center": {
+              "x": 0.0,
+              "y": -86.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              12.0,
+              3.4,
+              7.0
+            ],
+            "bounds": {
+              "min_x": -6.0,
+              "max_x": 6.0,
+              "min_y": -87.7,
+              "max_y": -84.3,
+              "min_z": 3.5,
+              "max_z": 10.5,
+              "size_x": 12.0,
+              "size_y": 3.4,
+              "size_z": 7.0
+            }
+          }
+        },
+        "checks": {
+          "containment": {
+            "fan_4028": true,
+            "battery_left_18650": true,
+            "battery_right_18650": true,
+            "pwm_controller_board": true,
+            "battery_protection_board": true,
+            "charge_module": true,
+            "boost_output_module": true
+          },
+          "clearance": {
+            "fan_4028": {
+              "required_mm": 1.5,
+              "actual_min_to_inner_envelope_mm": 4.6,
+              "pass": true
+            },
+            "battery_left_18650": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 7.6,
+              "pass": true
+            },
+            "battery_right_18650": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 7.6,
+              "pass": true
+            },
+            "pwm_controller_board": {
+              "required_mm": 1.2,
+              "actual_min_to_inner_envelope_mm": 8.6,
+              "pass": true
+            },
+            "battery_protection_board": {
+              "required_mm": 1.2,
+              "actual_min_to_inner_envelope_mm": 2.6,
+              "pass": true
+            },
+            "charge_module": {
+              "required_mm": 1.2,
+              "actual_min_to_inner_envelope_mm": 1.6,
+              "pass": true
+            },
+            "boost_output_module": {
+              "required_mm": 1.2,
+              "actual_min_to_inner_envelope_mm": 4.1,
+              "pass": true
+            }
+          },
+          "fixed_components_do_not_intersect": true,
+          "fixed_component_intersections": [],
+          "generated_features_do_not_intersect_fixed_components": true,
+          "generated_feature_intersections": [],
+          "fan_centered_in_head": true,
+          "battery_pair_separated": true,
+          "battery_pair_gap_mm": 2.4,
+          "battery_cylinder_like_clearance": {
+            "battery_left_18650": {
+              "axis": "y",
+              "radius_mm": 9.3,
+              "length_mm": 65.0,
+              "actual_min_to_inner_envelope_mm": 7.6,
+              "required_mm": 0.8,
+              "pass": true
+            },
+            "battery_right_18650": {
+              "axis": "y",
+              "radius_mm": 9.3,
+              "length_mm": 65.0,
+              "actual_min_to_inner_envelope_mm": 7.6,
+              "required_mm": 0.8,
+              "pass": true
+            }
+          },
+          "battery_cylinder_like_clearance_pass": true,
+          "handle_screw_bosses_do_not_intersect_batteries": true,
+          "handle_screw_boss_battery_intersections": [],
+          "charge_port_marker_aligned": true,
+          "switch_mechanism_near_pwm": true,
+          "switch_distance_y_mm": 8.0,
+          "switch_side_matches_parameter": true
+        },
+        "all_hard_checks_pass": true
+      },
+      "generated_geometry": {
+        "front_shell": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 56.0,
+            "y": 142.0,
+            "z": 2.4
+          }
+        },
+        "front_grille": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 36.0,
+            "y": 42.0,
+            "z": 2.4
+          }
+        },
+        "rear_shell": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 56.0,
+            "y": 151.7,
+            "z": 39.5
+          }
+        },
+        "internal_frame": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 53.2,
+            "y": 145.2,
+            "z": 24.0
+          }
+        },
+        "switch_mechanism": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 14.0,
+            "y": 18.0,
+            "z": 18.0
+          }
+        },
+        "component_envelopes": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 46.0,
+            "y": 139.0,
+            "z": 40.8
+          }
+        }
+      },
+      "outputs": [
+        "outputs/fixture_5_handheld_fan/edited/front_shell.step",
+        "outputs/fixture_5_handheld_fan/edited/front_shell.stl",
+        "outputs/fixture_5_handheld_fan/edited/front_grille.step",
+        "outputs/fixture_5_handheld_fan/edited/front_grille.stl",
+        "outputs/fixture_5_handheld_fan/edited/rear_shell.step",
+        "outputs/fixture_5_handheld_fan/edited/rear_shell.stl",
+        "outputs/fixture_5_handheld_fan/edited/internal_frame.step",
+        "outputs/fixture_5_handheld_fan/edited/internal_frame.stl",
+        "outputs/fixture_5_handheld_fan/edited/switch_mechanism.step",
+        "outputs/fixture_5_handheld_fan/edited/switch_mechanism.stl",
+        "outputs/fixture_5_handheld_fan/edited/component_envelopes.step"
+      ],
+      "status": "pass"
+    },
+    "left_hand": {
+      "parameters": {
+        "wall_thickness": 2.0,
+        "fan_clearance": 1.0,
+        "battery_clearance": 0.8,
+        "electronics_clearance": 0.8,
+        "switch_clearance": 0.6,
+        "shell_split_gap": 0.3,
+        "head_outer_radius": 28.0,
+        "handle_width": 44.0,
+        "handle_length": 92.0,
+        "front_grille_spoke_count": 8.0,
+        "front_grille_ring_radius": 18.0,
+        "screw_boss_outer_diameter": 5.2,
+        "screw_clearance_diameter": 2.2,
+        "switch_wheel_diameter": 18.0,
+        "switch_side_sign": -1.0,
+        "switch_offset_y": -12.0
+      },
+      "layout": {
+        "parameters": {
+          "wall_thickness": 2.0,
+          "fan_clearance": 1.0,
+          "battery_clearance": 0.8,
+          "electronics_clearance": 0.8,
+          "switch_clearance": 0.6,
+          "shell_split_gap": 0.3,
+          "head_outer_radius": 28.0,
+          "handle_width": 44.0,
+          "handle_length": 92.0,
+          "front_grille_spoke_count": 8.0,
+          "front_grille_ring_radius": 18.0,
+          "screw_boss_outer_diameter": 5.2,
+          "screw_clearance_diameter": 2.2,
+          "switch_wheel_diameter": 18.0,
+          "switch_side_sign": -1.0,
+          "switch_offset_y": -12.0
+        },
+        "iteration_mode": "left_hand",
+        "outer_dimensions_mm": {
+          "x": 60.0,
+          "y": 150.0,
+          "z": 58.0
+        },
+        "inner_envelope": {
+          "min_x": -28.0,
+          "max_x": 28.0,
+          "min_y": -84.0,
+          "max_y": 62.0,
+          "min_z": -27.0,
+          "max_z": 27.0,
+          "size_x": 56.0,
+          "size_y": 146.0,
+          "size_z": 54.0
+        },
+        "outer_envelope": {
+          "min_x": -30.0,
+          "max_x": 30.0,
+          "min_y": -86.0,
+          "max_y": 64.0,
+          "min_z": -29.0,
+          "max_z": 29.0,
+          "size_x": 60.0,
+          "size_y": 150.0,
+          "size_z": 58.0
+        },
+        "placements": {
+          "fan_center": {
+            "x": 0.0,
+            "y": 36.0,
+            "z": 0.0
+          },
+          "handle_center": {
+            "x": 0.0,
+            "y": -32.0,
+            "z": 0.0
+          },
+          "switch_center": {
+            "x": -34.5,
+            "y": -22.0,
+            "z": 6.0
+          },
+          "switch_side": "left"
+        },
+        "components": {
+          "fan_4028": {
+            "center": {
+              "x": 0.0,
+              "y": 36.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              42.0,
+              42.0,
+              30.0
+            ],
+            "bounds": {
+              "min_x": -21.0,
+              "max_x": 21.0,
+              "min_y": 15.0,
+              "max_y": 57.0,
+              "min_z": -15.0,
+              "max_z": 15.0,
+              "size_x": 42.0,
+              "size_y": 42.0,
+              "size_z": 30.0
+            },
+            "required_clearance": "fan_clearance"
+          },
+          "battery_left_18650": {
+            "center": {
+              "x": -10.5,
+              "y": -43.5,
+              "z": -9.0
+            },
+            "dimensions_mm": [
+              18.6,
+              65.0,
+              18.6
+            ],
+            "bounds": {
+              "min_x": -19.8,
+              "max_x": -1.2,
+              "min_y": -76.0,
+              "max_y": -11.0,
+              "min_z": -18.3,
+              "max_z": 0.3,
+              "size_x": 18.6,
+              "size_y": 65.0,
+              "size_z": 18.6
+            },
+            "required_clearance": "battery_clearance"
+          },
+          "battery_right_18650": {
+            "center": {
+              "x": 10.5,
+              "y": -43.5,
+              "z": -9.0
+            },
+            "dimensions_mm": [
+              18.6,
+              65.0,
+              18.6
+            ],
+            "bounds": {
+              "min_x": 1.2,
+              "max_x": 19.8,
+              "min_y": -76.0,
+              "max_y": -11.0,
+              "min_z": -18.3,
+              "max_z": 0.3,
+              "size_x": 18.6,
+              "size_y": 65.0,
+              "size_z": 18.6
+            },
+            "required_clearance": "battery_clearance"
+          },
+          "pwm_controller_board": {
+            "center": {
+              "x": -6.0,
+              "y": -10.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              26.0,
+              34.0,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -19.0,
+              "max_x": 7.0,
+              "min_y": -27.0,
+              "max_y": 7.0,
+              "min_z": 3.0,
+              "max_z": 11.0,
+              "size_x": 26.0,
+              "size_y": 34.0,
+              "size_z": 8.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "battery_protection_board": {
+            "center": {
+              "x": 16.0,
+              "y": -38.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              18.0,
+              45.0,
+              5.0
+            ],
+            "bounds": {
+              "min_x": 7.0,
+              "max_x": 25.0,
+              "min_y": -60.5,
+              "max_y": -15.5,
+              "min_z": 4.5,
+              "max_z": 9.5,
+              "size_x": 18.0,
+              "size_y": 45.0,
+              "size_z": 5.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "charge_module": {
+            "center": {
+              "x": 0.0,
+              "y": -73.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              28.0,
+              18.0,
+              6.0
+            ],
+            "bounds": {
+              "min_x": -14.0,
+              "max_x": 14.0,
+              "min_y": -82.0,
+              "max_y": -64.0,
+              "min_z": 4.0,
+              "max_z": 10.0,
+              "size_x": 28.0,
+              "size_y": 18.0,
+              "size_z": 6.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "boost_output_module": {
+            "center": {
+              "x": 9.0,
+              "y": -28.0,
+              "z": 18.5
+            },
+            "dimensions_mm": [
+              22.0,
+              30.0,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -2.0,
+              "max_x": 20.0,
+              "min_y": -43.0,
+              "max_y": -13.0,
+              "min_z": 14.5,
+              "max_z": 22.5,
+              "size_x": 22.0,
+              "size_y": 30.0,
+              "size_z": 8.0
+            },
+            "required_clearance": "electronics_clearance"
+          },
+          "switch_thumbwheel": {
+            "center": {
+              "x": -34.5,
+              "y": -22.0,
+              "z": 6.0
+            },
+            "dimensions_mm": [
+              5.0,
+              18.0,
+              18.0
+            ],
+            "bounds": {
+              "min_x": -37.0,
+              "max_x": -32.0,
+              "min_y": -31.0,
+              "max_y": -13.0,
+              "min_z": -3.0,
+              "max_z": 15.0,
+              "size_x": 5.0,
+              "size_y": 18.0,
+              "size_z": 18.0
+            },
+            "required_clearance": "switch_clearance"
+          },
+          "switch_drive_gear": {
+            "center": {
+              "x": -25.4,
+              "y": -22.0,
+              "z": 6.0
+            },
+            "dimensions_mm": [
+              4.0,
+              14.0,
+              14.0
+            ],
+            "bounds": {
+              "min_x": -27.4,
+              "max_x": -23.4,
+              "min_y": -29.0,
+              "max_y": -15.0,
+              "min_z": -1.0,
+              "max_z": 13.0,
+              "size_x": 4.0,
+              "size_y": 14.0,
+              "size_z": 14.0
+            },
+            "required_clearance": "switch_clearance"
+          }
+        },
+        "generated_feature_bounds": {
+          "front_shell_slab": {
+            "center": {
+              "x": 0.0,
+              "y": -8.0,
+              "z": 28.0
+            },
+            "dimensions_mm": [
+              60.0,
+              150.0,
+              2.0
+            ],
+            "bounds": {
+              "min_x": -30.0,
+              "max_x": 30.0,
+              "min_y": -83.0,
+              "max_y": 67.0,
+              "min_z": 27.0,
+              "max_z": 29.0,
+              "size_x": 60.0,
+              "size_y": 150.0,
+              "size_z": 2.0
+            }
+          },
+          "rear_shell_slab": {
+            "center": {
+              "x": 0.0,
+              "y": -8.0,
+              "z": -28.0
+            },
+            "dimensions_mm": [
+              60.0,
+              150.0,
+              2.0
+            ],
+            "bounds": {
+              "min_x": -30.0,
+              "max_x": 30.0,
+              "min_y": -83.0,
+              "max_y": 67.0,
+              "min_z": -29.0,
+              "max_z": -27.0,
+              "size_x": 60.0,
+              "size_y": 150.0,
+              "size_z": 2.0
+            }
+          },
+          "battery_left_rail": {
+            "center": {
+              "x": -10.5,
+              "y": -43.5,
+              "z": -19.2
+            },
+            "dimensions_mm": [
+              22.0,
+              66.0,
+              1.6
+            ],
+            "bounds": {
+              "min_x": -21.5,
+              "max_x": 0.5,
+              "min_y": -76.5,
+              "max_y": -10.5,
+              "min_z": -20.0,
+              "max_z": -18.4,
+              "size_x": 22.0,
+              "size_y": 66.0,
+              "size_z": 1.6
+            }
+          },
+          "battery_right_rail": {
+            "center": {
+              "x": 10.5,
+              "y": -43.5,
+              "z": -19.2
+            },
+            "dimensions_mm": [
+              22.0,
+              66.0,
+              1.6
+            ],
+            "bounds": {
+              "min_x": -0.5,
+              "max_x": 21.5,
+              "min_y": -76.5,
+              "max_y": -10.5,
+              "min_z": -20.0,
+              "max_z": -18.4,
+              "size_x": 22.0,
+              "size_y": 66.0,
+              "size_z": 1.6
+            }
+          },
+          "pcb_shelf": {
+            "center": {
+              "x": -4.0,
+              "y": -36.0,
+              "z": 2.1
+            },
+            "dimensions_mm": [
+              38.0,
+              72.0,
+              1.4
+            ],
+            "bounds": {
+              "min_x": -23.0,
+              "max_x": 15.0,
+              "min_y": -72.0,
+              "max_y": 0.0,
+              "min_z": 1.4,
+              "max_z": 2.8,
+              "size_x": 38.0,
+              "size_y": 72.0,
+              "size_z": 1.4
+            }
+          },
+          "head_screw_boss_1": {
+            "center": {
+              "x": -24.0,
+              "y": 60.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -26.6,
+              "max_x": -21.4,
+              "min_y": 57.4,
+              "max_y": 62.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_2": {
+            "center": {
+              "x": 24.0,
+              "y": 60.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 21.4,
+              "max_x": 26.6,
+              "min_y": 57.4,
+              "max_y": 62.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_3": {
+            "center": {
+              "x": -24.0,
+              "y": 15.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -26.6,
+              "max_x": -21.4,
+              "min_y": 12.4,
+              "max_y": 17.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "head_screw_boss_4": {
+            "center": {
+              "x": 24.0,
+              "y": 15.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 21.4,
+              "max_x": 26.6,
+              "min_y": 12.4,
+              "max_y": 17.6,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "handle_screw_boss_1": {
+            "center": {
+              "x": -22.0,
+              "y": -80.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": -24.6,
+              "max_x": -19.4,
+              "min_y": -82.6,
+              "max_y": -77.4,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "handle_screw_boss_2": {
+            "center": {
+              "x": 22.0,
+              "y": -80.0,
+              "z": 0.0
+            },
+            "dimensions_mm": [
+              5.2,
+              5.2,
+              8.0
+            ],
+            "bounds": {
+              "min_x": 19.4,
+              "max_x": 24.6,
+              "min_y": -82.6,
+              "max_y": -77.4,
+              "min_z": -4.0,
+              "max_z": 4.0,
+              "size_x": 5.2,
+              "size_y": 5.2,
+              "size_z": 8.0
+            }
+          },
+          "charge_port_marker": {
+            "center": {
+              "x": 0.0,
+              "y": -86.0,
+              "z": 7.0
+            },
+            "dimensions_mm": [
+              12.0,
+              3.0,
+              7.0
+            ],
+            "bounds": {
+              "min_x": -6.0,
+              "max_x": 6.0,
+              "min_y": -87.5,
+              "max_y": -84.5,
+              "min_z": 3.5,
+              "max_z": 10.5,
+              "size_x": 12.0,
+              "size_y": 3.0,
+              "size_z": 7.0
+            }
+          }
+        },
+        "checks": {
+          "containment": {
+            "fan_4028": true,
+            "battery_left_18650": true,
+            "battery_right_18650": true,
+            "pwm_controller_board": true,
+            "battery_protection_board": true,
+            "charge_module": true,
+            "boost_output_module": true
+          },
+          "clearance": {
+            "fan_4028": {
+              "required_mm": 1.0,
+              "actual_min_to_inner_envelope_mm": 5.0,
+              "pass": true
+            },
+            "battery_left_18650": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "pass": true
+            },
+            "battery_right_18650": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "pass": true
+            },
+            "pwm_controller_board": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 9.0,
+              "pass": true
+            },
+            "battery_protection_board": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 3.0,
+              "pass": true
+            },
+            "charge_module": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 2.0,
+              "pass": true
+            },
+            "boost_output_module": {
+              "required_mm": 0.8,
+              "actual_min_to_inner_envelope_mm": 4.5,
+              "pass": true
+            }
+          },
+          "fixed_components_do_not_intersect": true,
+          "fixed_component_intersections": [],
+          "generated_features_do_not_intersect_fixed_components": true,
+          "generated_feature_intersections": [],
+          "fan_centered_in_head": true,
+          "battery_pair_separated": true,
+          "battery_pair_gap_mm": 2.4,
+          "battery_cylinder_like_clearance": {
+            "battery_left_18650": {
+              "axis": "y",
+              "radius_mm": 9.3,
+              "length_mm": 65.0,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "required_mm": 0.8,
+              "pass": true
+            },
+            "battery_right_18650": {
+              "axis": "y",
+              "radius_mm": 9.3,
+              "length_mm": 65.0,
+              "actual_min_to_inner_envelope_mm": 8.0,
+              "required_mm": 0.8,
+              "pass": true
+            }
+          },
+          "battery_cylinder_like_clearance_pass": true,
+          "handle_screw_bosses_do_not_intersect_batteries": true,
+          "handle_screw_boss_battery_intersections": [],
+          "charge_port_marker_aligned": true,
+          "switch_mechanism_near_pwm": true,
+          "switch_distance_y_mm": 12.0,
+          "switch_side_matches_parameter": true
+        },
+        "all_hard_checks_pass": true
+      },
+      "generated_geometry": {
+        "front_shell": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 56.0,
+            "y": 142.0,
+            "z": 2.0
+          }
+        },
+        "front_grille": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 36.0,
+            "y": 42.0,
+            "z": 2.0
+          }
+        },
+        "rear_shell": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 56.0,
+            "y": 151.5,
+            "z": 39.5
+          }
+        },
+        "internal_frame": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 53.2,
+            "y": 145.2,
+            "z": 24.0
+          }
+        },
+        "switch_mechanism": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 13.6,
+            "y": 18.0,
+            "z": 18.0
+          }
+        },
+        "component_envelopes": {
+          "valid_solid": true,
+          "bbox_mm": {
+            "x": 46.0,
+            "y": 139.0,
+            "z": 40.8
+          }
+        }
+      },
+      "outputs": [
+        "outputs/fixture_5_handheld_fan/left_hand/front_shell.step",
+        "outputs/fixture_5_handheld_fan/left_hand/front_shell.stl",
+        "outputs/fixture_5_handheld_fan/left_hand/front_grille.step",
+        "outputs/fixture_5_handheld_fan/left_hand/front_grille.stl",
+        "outputs/fixture_5_handheld_fan/left_hand/rear_shell.step",
+        "outputs/fixture_5_handheld_fan/left_hand/rear_shell.stl",
+        "outputs/fixture_5_handheld_fan/left_hand/internal_frame.step",
+        "outputs/fixture_5_handheld_fan/left_hand/internal_frame.stl",
+        "outputs/fixture_5_handheld_fan/left_hand/switch_mechanism.step",
+        "outputs/fixture_5_handheld_fan/left_hand/switch_mechanism.stl",
+        "outputs/fixture_5_handheld_fan/left_hand/component_envelopes.step"
+      ],
+      "status": "pass"
+    }
+  },
+  "outputs": [
+    "outputs/fixture_5_handheld_fan/baseline/front_shell.step",
+    "outputs/fixture_5_handheld_fan/baseline/front_shell.stl",
+    "outputs/fixture_5_handheld_fan/baseline/front_grille.step",
+    "outputs/fixture_5_handheld_fan/baseline/front_grille.stl",
+    "outputs/fixture_5_handheld_fan/baseline/rear_shell.step",
+    "outputs/fixture_5_handheld_fan/baseline/rear_shell.stl",
+    "outputs/fixture_5_handheld_fan/baseline/internal_frame.step",
+    "outputs/fixture_5_handheld_fan/baseline/internal_frame.stl",
+    "outputs/fixture_5_handheld_fan/baseline/switch_mechanism.step",
+    "outputs/fixture_5_handheld_fan/baseline/switch_mechanism.stl",
+    "outputs/fixture_5_handheld_fan/baseline/component_envelopes.step",
+    "outputs/fixture_5_handheld_fan/edited/front_shell.step",
+    "outputs/fixture_5_handheld_fan/edited/front_shell.stl",
+    "outputs/fixture_5_handheld_fan/edited/front_grille.step",
+    "outputs/fixture_5_handheld_fan/edited/front_grille.stl",
+    "outputs/fixture_5_handheld_fan/edited/rear_shell.step",
+    "outputs/fixture_5_handheld_fan/edited/rear_shell.stl",
+    "outputs/fixture_5_handheld_fan/edited/internal_frame.step",
+    "outputs/fixture_5_handheld_fan/edited/internal_frame.stl",
+    "outputs/fixture_5_handheld_fan/edited/switch_mechanism.step",
+    "outputs/fixture_5_handheld_fan/edited/switch_mechanism.stl",
+    "outputs/fixture_5_handheld_fan/edited/component_envelopes.step",
+    "outputs/fixture_5_handheld_fan/left_hand/front_shell.step",
+    "outputs/fixture_5_handheld_fan/left_hand/front_shell.stl",
+    "outputs/fixture_5_handheld_fan/left_hand/front_grille.step",
+    "outputs/fixture_5_handheld_fan/left_hand/front_grille.stl",
+    "outputs/fixture_5_handheld_fan/left_hand/rear_shell.step",
+    "outputs/fixture_5_handheld_fan/left_hand/rear_shell.stl",
+    "outputs/fixture_5_handheld_fan/left_hand/internal_frame.step",
+    "outputs/fixture_5_handheld_fan/left_hand/internal_frame.stl",
+    "outputs/fixture_5_handheld_fan/left_hand/switch_mechanism.step",
+    "outputs/fixture_5_handheld_fan/left_hand/switch_mechanism.stl",
+    "outputs/fixture_5_handheld_fan/left_hand/component_envelopes.step"
+  ]
+}

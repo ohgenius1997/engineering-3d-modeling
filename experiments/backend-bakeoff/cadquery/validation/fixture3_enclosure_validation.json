@@ -1,0 +1,161 @@
+{
+  "fixture": "fixture_3",
+  "status": "pass",
+  "cadquery_version": "2.7.0",
+  "source_spec": "../shared/specs/fixture-3-enclosure.yaml",
+  "module_step_diagnostic": "../shared/validation/module_step_diagnostics.json",
+  "module_import_policy": {
+    "if_topology_invalid": "use_measured_bbox_envelope",
+    "use_imported_cad_for_visual_reference": true,
+    "use_top_compound_for_boolean_collision": false,
+    "measured_bbox_envelope_mm": [
+      28.0461,
+      18.4964,
+      5.1914
+    ],
+    "measured_bbox_source": "../validation/module_step_diagnostics.json",
+    "note": "The supplied module STEP imports as an invalid top-level compound in the current OpenCascade/CadQuery/build123d environment. Candidate Fixture 3 tests should use the measured bbox envelope for containment, clearance, and collision checks while reporting the imported CAD validity issue.\n"
+  },
+  "layout": {
+    "parameters": {
+      "target_max_length": 90.0,
+      "target_max_width": 36.0,
+      "target_max_height": 34.0,
+      "wall_thickness": 2.0,
+      "battery_clearance": 0.8,
+      "pcb_clearance": 0.8,
+      "lid_gap": 0.3,
+      "corner_radius": 4.0,
+      "shell_split_offset_z": 0.0,
+      "screw_boss_outer_diameter": 5.0,
+      "screw_clearance_diameter": 2.2
+    },
+    "iteration_mode": "baseline",
+    "module_envelope_source": "measured_bbox_from_step_diagnostic",
+    "module_dimensions_mm": [
+      28.0461,
+      18.4964,
+      5.1914
+    ],
+    "outer_dimensions_mm": {
+      "x": 83.6,
+      "y": 26.6,
+      "z": 32.8914
+    },
+    "inner_dimensions_mm": {
+      "x": 79.6,
+      "y": 22.6,
+      "z": 28.5914
+    },
+    "bounds": {
+      "outer": {
+        "min_x": -41.8,
+        "max_x": 41.8,
+        "min_y": -13.3,
+        "max_y": 13.3,
+        "min_z": -16.4457,
+        "max_z": 16.4457,
+        "size_x": 83.6,
+        "size_y": 26.6,
+        "size_z": 32.8914
+      },
+      "inner": {
+        "min_x": -39.8,
+        "max_x": 39.8,
+        "min_y": -11.3,
+        "max_y": 11.3,
+        "min_z": -14.2957,
+        "max_z": 14.2957,
+        "size_x": 79.6,
+        "size_y": 22.6,
+        "size_z": 28.5914
+      },
+      "battery": {
+        "min_x": -36.0,
+        "max_x": 34.0,
+        "min_y": -10.5,
+        "max_y": 10.5,
+        "min_z": -13.4957,
+        "max_z": 7.5043,
+        "size_x": 70.0,
+        "size_y": 21.0,
+        "size_z": 21.0
+      },
+      "module": {
+        "min_x": 10.9539,
+        "max_x": 39.0,
+        "min_y": -9.2482,
+        "max_y": 9.2482,
+        "min_z": 8.3043,
+        "max_z": 13.4957,
+        "size_x": 28.0461,
+        "size_y": 18.4964,
+        "size_z": 5.1914
+      }
+    },
+    "placements": {
+      "battery_center": {
+        "x": -1.0,
+        "y": 0.0,
+        "z": -2.9957
+      },
+      "module_center": {
+        "x": 24.977,
+        "y": 0.0,
+        "z": 10.9
+      }
+    },
+    "port_opening": {
+      "center": {
+        "x": 41.8,
+        "y": 0.0,
+        "z": 10.9
+      },
+      "dimensions": {
+        "depth_x": 3.0,
+        "width_y": 11.0,
+        "height_z": 6.0
+      }
+    },
+    "checks": {
+      "outer_within_target": {
+        "x": true,
+        "y": true,
+        "z": true
+      },
+      "battery_contained": true,
+      "module_contained": true,
+      "battery_min_clearance_mm": 0.8,
+      "module_min_clearance_mm": 0.8,
+      "battery_clearance_pass": true,
+      "module_clearance_pass": true,
+      "component_intersection": false,
+      "components_do_not_intersect": true,
+      "port_opening_alignment_pass": true
+    },
+    "soft_goal_checks": {
+      "outer_within_target": {
+        "x": true,
+        "y": true,
+        "z": true
+      }
+    },
+    "all_hard_checks_pass": true
+  },
+  "generated_geometry": {
+    "lower_shell_valid": true,
+    "lid_valid": true,
+    "component_envelopes_valid": true
+  },
+  "outputs": [
+    "outputs/fixture3/lower_shell.step",
+    "outputs/fixture3/lower_shell.stl",
+    "outputs/fixture3/lid.step",
+    "outputs/fixture3/lid.stl",
+    "outputs/fixture3/component_envelopes.step"
+  ],
+  "warnings": [
+    "Imported module STEP is retained as reference only; collision validation uses measured bbox envelope because the top-level STEP compound is invalid."
+  ],
+  "validation_report": "validation/fixture3_enclosure_validation.json"
+}

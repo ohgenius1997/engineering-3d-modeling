@@ -1,0 +1,41 @@
+schema_version: bakeoff.fixture_index.v0
+created_on: 2026-06-17
+units: mm
+purpose: >
+  Shared backend-neutral fixture specs for comparing engineering CAD backends.
+  Candidate implementations must preserve fixture intent and acceptance criteria
+  while using backend-specific source code only under their own candidate folders.
+fixtures:
+  - id: fixture-1-mounting-plate
+    file: fixture-1-mounting-plate.yaml
+    kind: single_part
+    focus:
+      - parametric solid generation
+      - simple feature editing
+      - STEP or equivalent CAD export
+      - STL or view export
+  - id: fixture-2-formula-vane
+    file: fixture-2-formula-vane.yaml
+    kind: formula_driven_part
+    focus:
+      - analytical geometry
+      - NACA profile generation
+      - formula validation before CAD generation
+      - invalid-domain diagnostics
+  - id: fixture-3-powerbank-enclosure
+    file: fixture-3-enclosure.yaml
+    kind: assembly_enclosure
+    focus:
+      - fixed component registry
+      - optional imported module CAD
+      - fallback component envelopes
+      - clearance and collision validation
+      - user-reviewable enclosure outputs
+shared_inputs:
+  cad_root: ../inputs/cad
+  charge_discharge_module_dir: ../inputs/cad/charge_discharge_module
+  datasheet_root: ../inputs/datasheets
+candidate_rule: >
+  Candidate tests may create backend-specific source, outputs, and validation files
+  only under experiments/backend-bakeoff/<candidate>/ unless adding missing shared
+  fixture inputs.

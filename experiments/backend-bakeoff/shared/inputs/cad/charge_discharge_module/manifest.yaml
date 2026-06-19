@@ -1,0 +1,33 @@
+schema_version: bakeoff.cad_input_manifest.v0
+component_id: charge_discharge_module
+purpose: >
+  Place the user-supplied CAD drawing or model for the power-bank charge/discharge
+  module in this directory. Fixture 3 will use this CAD when a candidate backend
+  can import it; otherwise candidates must use the fallback envelope declared in
+  fixture-3-enclosure.yaml and report that fallback.
+preferred_files:
+  - module.step
+  - module.stp
+accepted_reference_files:
+  - module.f3d
+  - module.dxf
+  - module.pdf
+  - module.png
+  - module.svg
+coordinate_preference:
+  x: board_length
+  y: board_width
+  z: component_height
+  primary_port_direction: positive_x
+fallback_envelope:
+  type: box
+  dimensions_mm: [45, 20, 7]
+measured_envelope_from_current_step:
+  type: box
+  dimensions_mm: [28.0461, 18.4964, 5.1914]
+  diagnostic_report: ../../../../validation/module_step_diagnostics.json
+  policy: use_for_fixture3_collision_when_step_topology_is_invalid
+notes:
+  - Do not place API tokens, private credentials, or unrelated files here.
+  - If the CAD origin or orientation is unknown, candidate tests must record the assumed transform.
+  - If the file includes only a 2D drawing, candidate tests may use it as reference and keep the fallback envelope for collision checks.

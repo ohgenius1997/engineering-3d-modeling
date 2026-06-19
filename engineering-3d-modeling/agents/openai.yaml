@@ -1,0 +1,4 @@
+interface:
+  display_name: "Engineering 3D Modeling"
+  short_description: "Build maintainable STEP CAD model projects"
+  default_prompt: "Use $engineering-3d-modeling to create a lightweight build123d STEP model project from my engineering CAD request."

@@ -1,0 +1,132 @@
+schema_version: engineering_3d_fixture.v0
+fixture_id: fixture-1-mounting-plate
+title: Rounded mounting plate
+kind: single_part
+units: mm
+intent: >
+  Create a compact printable rounded mounting plate with common hole, recess,
+  fillet, parameter-edit, validation, and export requirements.
+coordinate_system:
+  origin: part_center
+  axes:
+    x: length
+    y: width
+    z: thickness
+parameters:
+  plate_length:
+    value: 80
+    unit: mm
+    ui: numeric
+    min: 50
+    max: 140
+  plate_width:
+    value: 50
+    unit: mm
+    ui: numeric
+    min: 30
+    max: 90
+  plate_thickness:
+    value: 4
+    unit: mm
+    ui: numeric
+    min: 2
+    max: 10
+    edit_test_value: 6
+  corner_radius:
+    value: 4
+    unit: mm
+    ui: numeric
+    min: 1
+    max: 12
+    edit_test_value: 6
+  edge_fillet:
+    value: 1
+    unit: mm
+    ui: numeric
+    min: 0
+    max: 3
+    edit_test_value: 1.5
+  hole_diameter:
+    value: 3.2
+    unit: mm
+    ui: numeric
+    min: 2
+    max: 6
+    edit_test_value: 3.6
+  bolt_pattern_x:
+    value: 62
+    unit: mm
+    ui: numeric
+    min: 30
+    max: 100
+  bolt_pattern_y:
+    value: 32
+    unit: mm
+    ui: numeric
+    min: 18
+    max: 70
+  recess_length:
+    value: 36
+    unit: mm
+    ui: numeric
+    min: 12
+    max: 70
+  recess_width:
+    value: 18
+    unit: mm
+    ui: numeric
+    min: 8
+    max: 40
+  recess_depth:
+    value: 1
+    unit: mm
+    ui: numeric
+    min: 0
+    max: 3
+features:
+  base:
+    type: rounded_rectangle_plate
+    dimensions:
+      length: plate_length
+      width: plate_width
+      thickness: plate_thickness
+      corner_radius: corner_radius
+  holes:
+    type: through_hole_pattern
+    count: 4
+    diameter: hole_diameter
+    pattern:
+      x_spacing: bolt_pattern_x
+      y_spacing: bolt_pattern_y
+  center_recess:
+    type: shallow_rectangular_recess
+    dimensions:
+      length: recess_length
+      width: recess_width
+      depth: recess_depth
+    location: centered_on_top_face
+  finishing:
+    edge_fillet: edge_fillet
+acceptance:
+  hard_requirements:
+    - Generate a valid solid according to backend-accessible checks where possible.
+    - Preserve all dimensions in millimeters.
+    - Regenerate successfully after each edit_test_value is applied.
+    - Export a CAD exchange file such as STEP when backend supports one.
+    - Export a print or review mesh such as STL or glTF when backend supports one.
+  dimensional_checks:
+    bounding_box:
+      x: plate_length
+      y: plate_width
+      z: plate_thickness
+      tolerance: 0.1
+    through_hole_count:
+      expected: 4
+  diagnostics:
+    - Report when fillet or recess parameters are invalid for the body size.
+    - Report export failures separately from geometry-generation failures.
+iteration_case:
+  description: Apply declared edit_test_value changes and regenerate.
+  expected_agent_behavior:
+    - Update parameters rather than rewriting hard-coded geometry.
+    - Record before and after bounding boxes.

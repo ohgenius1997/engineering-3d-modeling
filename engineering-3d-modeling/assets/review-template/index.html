@@ -1,0 +1,1889 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAD Review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #1d2430;
+      --muted: #697386;
+      --line: #d8dee8;
+      --accent: #1769aa;
+      --accent-2: #0b7f71;
+      --warn: #a15c00;
+    }
+    * { box-sizing: border-box; }
+    html { height: 100%; overflow: hidden; }
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: minmax(320px, 400px) 1fr;
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+    }
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    main {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfd;
+    }
+    h1, h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    h2 {
+      margin-top: 18px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+    button, .file-label {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 7px 9px;
+      cursor: pointer;
+      font: inherit;
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.secondary { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .sidebar-head {
+      padding: 14px 14px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .lang-switch {
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+      flex: 0 0 auto;
+    }
+    .lang-switch button {
+      border: 0;
+      border-radius: 0;
+      padding: 4px 7px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 12px;
+      min-width: 36px;
+    }
+    .lang-switch button.active {
+      color: #fff;
+      background: var(--accent);
+    }
+    .panel-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+      background: #f9fafb;
+    }
+    .panel-tab {
+      min-width: 0;
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 5px;
+      padding: 9px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .panel-tab:last-child { border-right: 0; }
+    .panel-tab.active {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+    .panel-tab span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tab-count, .pill {
+      min-width: 20px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 1px 6px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: center;
+    }
+    .panel-tab.active .tab-count {
+      border-color: #b7d2e8;
+      color: var(--accent);
+    }
+    .sidebar-content {
+      min-height: 0;
+      overflow: auto;
+      padding: 12px 14px 14px;
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+      margin-bottom: 8px;
+    }
+    .section-head:first-child { margin-top: 0; }
+    .section-head h2 {
+      margin: 0;
+    }
+    .panel-help {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .panel-actions {
+      position: sticky;
+      bottom: 0;
+      margin: 12px -14px -14px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line);
+      background: rgba(255,255,255,.94);
+      backdrop-filter: blur(8px);
+    }
+    .head-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: start;
+      margin-top: 10px;
+    }
+    .save-status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      align-self: center;
+    }
+    .data-menu {
+      position: relative;
+    }
+    .data-menu summary {
+      list-style: none;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 7px 9px;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .data-menu summary::-webkit-details-marker { display: none; }
+    .data-popover {
+      position: absolute;
+      z-index: 6;
+      right: 0;
+      top: calc(100% + 6px);
+      width: min(320px, calc(100vw - 28px));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 34px rgba(29,36,48,.18);
+      padding: 10px;
+    }
+    input[type="file"] { display: none; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 8px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .row > * { min-width: 0; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+    .file-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .file-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .muted { color: var(--muted); }
+    .status { color: var(--muted); font-size: 13px; }
+    .param {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 7px;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #edf0f4;
+    }
+    .param label, .part label {
+      display: block;
+      font-weight: 550;
+      overflow-wrap: anywhere;
+    }
+    .param small { color: var(--muted); }
+    .param-control {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) 72px;
+      gap: 8px;
+      align-items: center;
+    }
+    input[type="range"] {
+      padding: 0;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .param-value {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 5px 6px;
+      background: #f8fafc;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .part, .ref, .annotation {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 8px;
+      margin: 8px 0;
+    }
+    .annotation {
+      cursor: pointer;
+      border-left: 3px solid transparent;
+    }
+    .annotation.active {
+      border-left-color: var(--accent);
+      background: #eef6fc;
+    }
+    .annotation.draft {
+      border-style: dashed;
+    }
+    .annotation-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .annotation-index {
+      display: inline-grid;
+      place-items: center;
+      min-width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .annotation-target {
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+      margin-bottom: 8px;
+    }
+    .annotation textarea {
+      min-height: 64px;
+      margin-bottom: 8px;
+    }
+    .annotation-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .annotation-actions button {
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+    .annotation.pick-mode {
+      box-shadow: 0 0 0 2px rgba(11,127,113,.22);
+    }
+    .ref {
+      cursor: pointer;
+      border-left: 3px solid transparent;
+    }
+    .ref.selected {
+      border-left-color: var(--accent);
+      background: #eef6fc;
+    }
+    .canvas-wrap {
+      position: relative;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      background: #e9edf2;
+    }
+    .part-rail {
+      position: absolute;
+      z-index: 3;
+      top: 12px;
+      bottom: 58px;
+      left: 12px;
+      width: 116px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: auto;
+    }
+    .part-rail[hidden] { display: none; }
+    .part-scroll {
+      height: 26px;
+      border-radius: 6px;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 4px 16px rgba(29,36,48,.12);
+    }
+    .part-scroll:disabled {
+      opacity: .45;
+      cursor: default;
+    }
+    .part-strip {
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      scroll-behavior: smooth;
+    }
+    .part-card {
+      flex: 0 0 auto;
+      width: 116px;
+      border: 1px solid rgba(216,222,232,.95);
+      border-radius: 8px;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 8px 24px rgba(29,36,48,.13);
+      padding: 7px;
+    }
+    .part-card.solo {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(23,105,170,.16), 0 8px 24px rgba(29,36,48,.13);
+    }
+    .part-card.dimmed {
+      opacity: .58;
+    }
+    .part-thumb {
+      height: 54px;
+      border: 1px solid #dde4ee;
+      border-radius: 6px;
+      background:
+        linear-gradient(135deg, rgba(23,105,170,.14), rgba(11,127,113,.08)),
+        #f7f9fb;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .part-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .thumb-glyph {
+      width: 31px;
+      height: 26px;
+      border: 2px solid rgba(23,105,170,.55);
+      transform: skewY(-10deg) rotate(-8deg);
+      background: rgba(255,255,255,.58);
+      box-shadow: 8px 6px 0 rgba(11,127,113,.14);
+    }
+    .part-name {
+      font-weight: 650;
+      font-size: 12px;
+      line-height: 1.25;
+      margin-bottom: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .part-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    .mini-toggle {
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      color: var(--muted);
+      padding: 4px 3px;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .mini-toggle.active {
+      border-color: var(--accent);
+      color: #fff;
+      background: var(--accent);
+    }
+    .mini-toggle.solo.active {
+      border-color: var(--accent-2);
+      background: var(--accent-2);
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    canvas:active { cursor: grabbing; }
+    canvas.picking,
+    canvas.picking:active { cursor: crosshair; }
+    .hud {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(255,255,255,.9);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 9px;
+      max-width: min(560px, calc(100% - 24px));
+      color: var(--muted);
+    }
+    .warn { color: var(--warn); }
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(260px, 48vh) minmax(320px, 1fr);
+      }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 50vh; }
+      main { min-height: 0; }
+      .part-rail { width: 104px; bottom: 48px; }
+      .part-card { width: 104px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="sidebar-head">
+        <div class="title-row">
+          <h1 id="projectTitle">CAD Review</h1>
+          <div class="lang-switch" aria-label="Language">
+            <button type="button" data-lang="en">EN</button>
+            <button type="button" data-lang="zh">中</button>
+          </div>
+        </div>
+        <div class="status" id="projectMeta">No manifest loaded</div>
+        <div class="head-actions">
+          <div>
+            <button id="saveReview" class="primary" type="button" data-i18n="saveReview">Save</button>
+            <div class="save-status" id="saveStatus"></div>
+          </div>
+          <details class="data-menu" id="dataMenu">
+            <summary data-i18n="data">Data</summary>
+            <div class="data-popover">
+              <p class="panel-help" data-i18n="filesHelp">Load review data when opening this page outside a generated model project.</p>
+              <div class="file-grid">
+                <label class="file-label"><span data-i18n="manifest">Manifest</span><span class="muted">manifest.json</span><input id="manifestFile" type="file" accept="application/json"></label>
+                <label class="file-label"><span data-i18n="annotationsFile">Annotations</span><span class="muted">annotations.json</span><input id="annotationsFile" type="file" accept="application/json"></label>
+                <label class="file-label"><span data-i18n="patch">Patch</span><span class="muted">parameter_patch.json</span><input id="patchFile" type="file" accept="application/json"></label>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <nav class="panel-tabs" aria-label="Review sections" role="tablist">
+        <button class="panel-tab active" type="button" role="tab" data-panel-tab="parameters" aria-controls="panel-parameters" aria-selected="true">
+          <span data-i18n="tabParameters">Parameters</span><span class="tab-count" id="parameterTabCount">0</span>
+        </button>
+        <button class="panel-tab" type="button" role="tab" data-panel-tab="notes" aria-controls="panel-notes" aria-selected="false">
+          <span data-i18n="tabNotes">Notes</span><span class="tab-count" id="annotationTabCount">0</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-content">
+        <section class="panel active" id="panel-parameters" data-panel="parameters" role="tabpanel">
+          <div class="section-head">
+            <h2 data-i18n="parameters">Parameters</h2>
+            <span class="pill" id="parameterCount">0</span>
+          </div>
+          <p class="panel-help" data-i18n="parameterHelp">Adjust preview-bound parameters, then save a patch for backend regeneration.</p>
+          <div id="parameters"></div>
+        </section>
+
+        <section class="panel" id="panel-notes" data-panel="notes" role="tabpanel" hidden>
+          <div class="section-head">
+            <h2 data-i18n="annotation">Annotation</h2>
+            <span class="pill" id="openAnnotationCount">0</span>
+          </div>
+          <p class="panel-help" data-i18n="annotationHelp">Add a note, optionally bind it to a point on the model, then save all review changes together.</p>
+          <button id="addAnnotation" class="primary" type="button" data-i18n="addAnnotation">Add annotation</button>
+          <div id="annotations"></div>
+        </section>
+      </div>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <strong id="viewTitle">Current</strong>
+          <span class="muted" id="viewSubtitle"></span>
+        </div>
+        <div class="toolbar">
+          <button id="resetView" data-i18n="resetView">Reset view</button>
+        </div>
+      </header>
+      <div class="canvas-wrap">
+        <div class="part-rail" id="partRail" hidden>
+          <button class="part-scroll" id="partScrollUp" type="button" aria-label="Scroll parts up">▲</button>
+          <div class="part-strip" id="parts"></div>
+          <button class="part-scroll" id="partScrollDown" type="button" aria-label="Scroll parts down">▼</button>
+        </div>
+        <canvas id="preview"></canvas>
+        <div class="hud" id="hud">Load a review manifest. If a preview mesh is listed, it will render here.</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      manifest: {
+        schema: "engineering-3d-modeling.review_manifest.v1",
+        project: {name: "", kind: "part", units: "mm"},
+        versions: {current: null, previous: null},
+        preview: {mesh_json: null},
+        parts: [],
+        parameters: [],
+        refs: []
+      },
+      annotations: {schema: "engineering-3d-modeling.annotations.v1", annotations: []},
+      patch: {schema: "engineering-3d-modeling.parameter_patch.v1", patches: []},
+      mesh: null,
+      activeAnnotationId: null,
+      pickAnnotationId: null,
+      partVisible: new Map(),
+      soloPartId: null,
+      renderedFaces: [],
+      previewBaseBounds: null,
+      viewBounds: {center: [0, 0, 0], radius: 20},
+      rotX: -0.35,
+      rotY: 0.55,
+      zoom: 1,
+      drag: null,
+      lang: localStorage.getItem("eg3dReviewLang") || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en"),
+      activePanel: localStorage.getItem("eg3dReviewPanel") || "parameters"
+    };
+
+    const $ = id => document.getElementById(id);
+    const canvas = $("preview");
+    const ctx = canvas.getContext("2d");
+    if (state.activePanel === "select") state.activePanel = "notes";
+    const i18n = {
+      en: {
+        cadReview: "CAD Review",
+        noManifest: "No manifest loaded",
+        language: "Language",
+        files: "Files",
+        data: "Data",
+        manifest: "Manifest",
+        annotationsFile: "Annotations",
+        patch: "Patch",
+        saveReview: "Save",
+        saved: "Saved",
+        saveFailed: "Save failed. Open this page through the local review server.",
+        parameters: "Parameters",
+        tabParameters: "Params",
+        tabNotes: "Notes",
+        parameterHelp: "Adjust preview-bound parameters, then save a patch for backend regeneration.",
+        filesHelp: "Load review data when opening this page outside a generated model project.",
+        parts: "Parts",
+        visible: "Show",
+        onlyThis: "Only",
+        partScrollUp: "Scroll parts up",
+        partScrollDown: "Scroll parts down",
+        refs: "Refs",
+        annotation: "Annotation",
+        annotationPlaceholder: "Annotation text",
+        addAnnotation: "Add annotation",
+        annotationHelp: "Add a note, optionally bind it to a point on the model, then save all review changes together.",
+        chooseTarget: "Choose point",
+        chooseDifferentTarget: "Change point",
+        clearTarget: "Clear point",
+        globalAnnotation: "Global annotation",
+        targetPrompt: "Click a model point or ref marker to bind this annotation.",
+        targetMiss: "No selectable model point, edge, face, or ref marker was hit.",
+        targetLabel: "{label} ({type})",
+        noAnnotationText: "No text yet",
+        openAnnotations: "Annotations",
+        previewPatchLive: "Parameter preview is approximate until backend regeneration.",
+        previewPatchNoBinding: "Saved parameter patch. This mesh has no live preview binding for some changed parameters.",
+        current: "Current",
+        resetView: "Reset view",
+        invalidJson: "Invalid JSON: {message}",
+        kindUnits: "{kind} | {units}",
+        noDeclaredParameters: "No preview-bound parameters",
+        noParts: "No parts declared",
+        noAnnotations: "No annotations",
+        hudInitial: "Load a review manifest. If a preview mesh is listed, it will render here.",
+        hudSelected: "Selected annotation {index}",
+        hudPickTarget: "Pick a target for annotation {index}. Click a visible vertex, edge, face, or ref marker.",
+        hudReady: "Drag to rotate. Click a rendered ref or use the ref list.",
+        hudNoMesh: "No preview mesh loaded. <span class=\"warn\">Refs and preview-bound parameters are still reviewable.</span>"
+      },
+      zh: {
+        cadReview: "CAD 审阅",
+        noManifest: "未加载清单",
+        language: "语言",
+        files: "文件",
+        data: "数据",
+        manifest: "清单",
+        annotationsFile: "批注",
+        patch: "补丁",
+        saveReview: "保存",
+        saved: "已保存",
+        saveFailed: "保存失败。请通过本地 review server 打开此页面。",
+        parameters: "参数",
+        tabParameters: "参数",
+        tabNotes: "批注",
+        parameterHelp: "调整已绑定预览的参数，然后保存补丁供后端重新生成。",
+        filesHelp: "在生成的模型项目之外打开页面时，可在这里加载 review 数据。",
+        parts: "部件",
+        visible: "显示",
+        onlyThis: "只看",
+        partScrollUp: "向上滚动部件",
+        partScrollDown: "向下滚动部件",
+        refs: "引用",
+        annotation: "批注",
+        annotationPlaceholder: "批注文本",
+        addAnnotation: "添加批注",
+        annotationHelp: "添加批注，可选择绑定到模型点位，然后统一保存所有审阅改动。",
+        chooseTarget: "选择点位",
+        chooseDifferentTarget: "更换点位",
+        clearTarget: "清除点位",
+        globalAnnotation: "全局批注",
+        targetPrompt: "点击模型点位或可见引用标记来绑定这条批注。",
+        targetMiss: "没有命中可选择的模型点、边、面或引用标记。",
+        targetLabel: "{label}（{type}）",
+        noAnnotationText: "还没有文本",
+        openAnnotations: "批注",
+        previewPatchLive: "参数预览只是近似效果，最终仍需后端重新生成。",
+        previewPatchNoBinding: "已保存参数补丁。当前 mesh 没有为部分变化参数声明实时预览绑定。",
+        current: "当前版本",
+        resetView: "重置视图",
+        invalidJson: "JSON 无效：{message}",
+        kindUnits: "{kind} | {units}",
+        noDeclaredParameters: "没有绑定预览的参数",
+        noParts: "没有声明部件",
+        noAnnotations: "没有批注",
+        hudInitial: "加载 review 清单。如果清单列出了预览网格，会在这里显示。",
+        hudSelected: "已选择批注 {index}",
+        hudPickTarget: "为批注 {index} 选择点位。点击可见顶点、边、面或引用标记。",
+        hudReady: "拖动旋转。点击渲染引用点，或从引用列表选择。",
+        hudNoMesh: "未加载预览网格。<span class=\"warn\">仍可审阅引用和已绑定预览的参数。</span>"
+      }
+    };
+
+    function t(key, values = {}) {
+      const table = i18n[state.lang] || i18n.en;
+      return (table[key] || i18n.en[key] || key).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? "");
+    }
+
+    function applyLanguage() {
+      document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
+      document.title = t("cadReview");
+      document.querySelector(".lang-switch").setAttribute("aria-label", t("language"));
+      document.querySelectorAll("[data-i18n]").forEach(element => {
+        element.textContent = t(element.dataset.i18n);
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach(element => {
+        element.setAttribute("placeholder", t(element.dataset.i18nPlaceholder));
+      });
+      document.querySelectorAll("[data-lang]").forEach(button => {
+        button.classList.toggle("active", button.dataset.lang === state.lang);
+        button.setAttribute("aria-pressed", button.dataset.lang === state.lang ? "true" : "false");
+      });
+      $("viewTitle").textContent = t("current");
+      $("partScrollUp").setAttribute("aria-label", t("partScrollUp"));
+      $("partScrollDown").setAttribute("aria-label", t("partScrollDown"));
+    }
+
+    function setLanguage(lang) {
+      state.lang = lang === "zh" ? "zh" : "en";
+      localStorage.setItem("eg3dReviewLang", state.lang);
+      renderAll();
+    }
+
+    function setActivePanel(panel, rerender = true) {
+      if (panel === "select") panel = "notes";
+      if (panel === "files") panel = "parameters";
+      state.activePanel = ["parameters", "notes"].includes(panel) ? panel : "parameters";
+      localStorage.setItem("eg3dReviewPanel", state.activePanel);
+      if (rerender) renderAll();
+      else applyActivePanel();
+    }
+
+    function applyActivePanel() {
+      document.querySelectorAll("[data-panel]").forEach(panel => {
+        const active = panel.dataset.panel === state.activePanel;
+        panel.classList.toggle("active", active);
+        panel.toggleAttribute("hidden", !active);
+      });
+      document.querySelectorAll("[data-panel-tab]").forEach(button => {
+        const active = button.dataset.panelTab === state.activePanel;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+        button.tabIndex = active ? 0 : -1;
+      });
+    }
+
+    function updateCounts() {
+      const parameterCount = displayParameters().length;
+      const partCount = supportsPartRail() ? (state.manifest.parts || []).length : 0;
+      const annotationCount = (state.annotations.annotations || []).length;
+      $("parameterTabCount").textContent = parameterCount;
+      $("parameterCount").textContent = parameterCount;
+      $("annotationTabCount").textContent = annotationCount;
+      $("openAnnotationCount").textContent = annotationCount;
+      $("partRail").toggleAttribute("hidden", partCount === 0);
+      updatePartScrollButtons();
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = Math.max(320, Math.floor(rect.width * scale));
+      canvas.height = Math.max(260, Math.floor(rect.height * scale));
+      renderPreview();
+    }
+
+    function readFileInput(input, callback) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          callback(JSON.parse(String(reader.result)));
+        } catch (error) {
+          alert(t("invalidJson", {message: error.message}));
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    async function tryLoadDefaults() {
+      try {
+        const manifest = await fetchJsonIfPresent("manifest.json");
+        const annotations = await fetchJsonIfPresent("annotations.json");
+        const patch = await fetchJsonIfPresent("parameter_patch.json");
+        if (manifest) state.manifest = manifest;
+        if (annotations) state.annotations = annotations;
+        if (patch) state.patch = patch;
+        if (manifest || annotations || patch) initializeFromManifest();
+      } catch (_) {
+        renderAll();
+      }
+    }
+
+    async function fetchJsonIfPresent(path) {
+      try {
+        const response = await fetch(path, {cache: "no-store"});
+        return response.ok ? await response.json() : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function loadPreviewMesh() {
+      state.mesh = null;
+      const path = state.manifest.preview && state.manifest.preview.mesh_json;
+      if (!path) return;
+      try {
+        const response = await fetch(path, {cache: "no-store"});
+        if (response.ok) state.mesh = await response.json();
+      } catch (_) {
+        state.mesh = null;
+      }
+    }
+
+    function initializeFromManifest() {
+      state.partVisible = new Map();
+      state.soloPartId = null;
+      for (const part of state.manifest.parts || []) {
+        state.partVisible.set(part.id, part.visible !== false);
+      }
+      loadPreviewMesh().then(renderAll);
+    }
+
+    function renderAll() {
+      applyLanguage();
+      applyActivePanel();
+      renderHeader();
+      renderParameters();
+      renderParts();
+      renderAnnotations();
+      updateCounts();
+      renderPreview();
+    }
+
+    function renderHeader() {
+      const project = state.manifest.project || {};
+      $("projectTitle").textContent = project.name || t("cadReview");
+      if (project.name) {
+        $("projectMeta").textContent = t("kindUnits", {kind: project.kind || "model", units: project.units || "units"});
+      } else {
+        $("projectMeta").textContent = t("noManifest");
+      }
+      const current = state.manifest.versions && state.manifest.versions.current;
+      $("viewSubtitle").textContent = current && current.step ? ` ${current.step}` : "";
+    }
+
+    function renderParameters() {
+      const wrap = $("parameters");
+      wrap.innerHTML = "";
+      const params = displayParameters();
+      if (!params.length) {
+        wrap.innerHTML = `<div class="muted">${escapeHtml(t("noDeclaredParameters"))}</div>`;
+        return;
+      }
+      for (const param of params) {
+        const row = document.createElement("div");
+        row.className = "param";
+        const label = document.createElement("div");
+        label.innerHTML = `<label>${escapeHtml(param.label || param.id)}</label><small>${escapeHtml(param.id)} ${escapeHtml(param.unit || "")}</small>`;
+
+        const control = renderParameterControl(param);
+        row.append(label, control);
+        wrap.appendChild(row);
+      }
+    }
+
+    function renderParameterControl(param) {
+      const current = currentParameterValue(param);
+      const currentNumber = numeric(current);
+      if (currentNumber !== null) {
+        const bounds = sliderBounds(param, currentNumber);
+        const control = document.createElement("div");
+        control.className = "param-control";
+
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.min = bounds.min;
+        slider.max = bounds.max;
+        slider.step = bounds.step;
+        slider.value = clamp(currentNumber, bounds.min, bounds.max);
+
+        const readout = document.createElement("output");
+        readout.className = "param-value";
+        readout.value = formatSliderValue(slider.value, bounds.step);
+        readout.textContent = readout.value;
+
+        slider.addEventListener("input", () => {
+          readout.value = formatSliderValue(slider.value, bounds.step);
+          readout.textContent = readout.value;
+          setPatch(param, slider.value);
+        });
+        slider.addEventListener("change", () => setPatch(param, slider.value));
+        control.append(slider, readout);
+        return control;
+      }
+
+      const value = document.createElement("input");
+      value.type = typeof param.value === "boolean" ? "checkbox" : "text";
+      if (value.type === "checkbox") {
+        value.checked = Boolean(current);
+        value.addEventListener("change", () => setPatch(param, value.checked));
+      } else {
+        value.value = current;
+        value.addEventListener("input", () => setPatch(param, value.value));
+        value.addEventListener("change", () => setPatch(param, value.value));
+      }
+      return value;
+    }
+
+    function sliderBounds(param, currentValue) {
+      const step = positiveNumber(param.step) ?? inferSliderStep(currentValue);
+      let min = numeric(param.min);
+      let max = numeric(param.max);
+      if (min === null || max === null || min >= max) {
+        const span = Math.max(Math.abs(currentValue) * 0.5, step * 20, 1);
+        if (min === null) min = currentValue - span;
+        if (max === null) max = currentValue + span;
+        if (min >= max) {
+          min = currentValue - span;
+          max = currentValue + span;
+        }
+      }
+      if (currentValue < min) min = currentValue;
+      if (currentValue > max) max = currentValue;
+      return {min, max, step};
+    }
+
+    function inferSliderStep(value) {
+      if (Number.isInteger(value)) return 1;
+      const magnitude = Math.max(Math.abs(value), 1);
+      return Math.max(0.001, Number((magnitude / 100).toPrecision(2)));
+    }
+
+    function positiveNumber(value) {
+      const number = numeric(value);
+      return number !== null && number > 0 ? number : null;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function formatSliderValue(value, step) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return String(value);
+      const decimals = Math.min(6, Math.max(0, decimalPlaces(step)));
+      return number.toFixed(decimals).replace(/\.?0+$/, "");
+    }
+
+    function decimalPlaces(value) {
+      const text = String(value);
+      if (text.includes("e-")) return Number(text.split("e-")[1]) || 0;
+      const dot = text.indexOf(".");
+      return dot >= 0 ? text.length - dot - 1 : 0;
+    }
+
+    function setPatch(param, rawValue) {
+      const patches = ensurePatchShape();
+      const baseNumber = numeric(param.value);
+      const value = baseNumber !== null ? Number(rawValue) : rawValue;
+      const existingIndex = patches.findIndex(p => p.parameter_id === param.id);
+      const matchesBase = value === param.value || (baseNumber !== null && Number.isFinite(value) && Math.abs(value - baseNumber) < 1e-9);
+      if (matchesBase) {
+        if (existingIndex >= 0) patches.splice(existingIndex, 1);
+        renderPreview();
+        return;
+      }
+      const patch = {
+        parameter_id: param.id,
+        value,
+        unit: param.unit || "",
+        reason: "review-html",
+        source: "review-html"
+      };
+      if (existingIndex >= 0) Object.assign(patches[existingIndex], patch);
+      else patches.push(patch);
+      renderPreview();
+    }
+
+    function ensurePatchShape() {
+      if (!state.patch || typeof state.patch !== "object") {
+        state.patch = {schema: "engineering-3d-modeling.parameter_patch.v1", patches: []};
+      }
+      if (!Array.isArray(state.patch.patches)) state.patch.patches = [];
+      return state.patch.patches;
+    }
+
+    function currentParameterValue(param) {
+      const patch = ensurePatchShape().find(p => p.parameter_id === param.id);
+      return patch ? patch.value : param.value;
+    }
+
+    function patchedParameterIds() {
+      return new Set(ensurePatchShape().map(p => p.parameter_id));
+    }
+
+    function displayParameters() {
+      const previewable = previewEffectParameterIds();
+      return (state.manifest.parameters || []).filter(param => param && previewable.has(param.id));
+    }
+
+    function previewEffectParameterIds() {
+      return new Set(activePreviewEffects().map(effect => effect.parameter_id).filter(Boolean));
+    }
+
+    function previewPatchNotice() {
+      const patched = patchedParameterIds();
+      if (!patched.size) return "";
+      const effects = activePreviewEffects();
+      const previewable = new Set(effects.map(effect => effect.parameter_id).filter(Boolean));
+      for (const id of patched) {
+        if (!previewable.has(id)) return t("previewPatchNoBinding");
+      }
+      return t("previewPatchLive");
+    }
+
+    function renderParts() {
+      const wrap = $("parts");
+      wrap.innerHTML = "";
+      const parts = state.manifest.parts || [];
+      if (!supportsPartRail()) {
+        $("partRail").hidden = true;
+        return;
+      }
+      for (const part of parts) {
+        const card = document.createElement("div");
+        const visible = state.partVisible.get(part.id) !== false;
+        const solo = state.soloPartId === part.id;
+        const effectiveVisible = isPartVisible(part.id);
+        card.className = `part-card${solo ? " solo" : ""}${effectiveVisible ? "" : " dimmed"}`;
+        const thumb = part.thumbnail || part.thumbnail_url || part.preview || "";
+        const thumbContent = thumb
+          ? `<img src="${escapeHtml(thumb)}" alt="">`
+          : '<div class="thumb-glyph"></div>';
+        card.innerHTML = `
+          <div class="part-thumb">${thumbContent}</div>
+          <div class="part-name" title="${escapeHtml(part.label || part.id)}">${escapeHtml(part.label || part.id)}</div>
+          <div class="part-controls">
+            <button class="mini-toggle visible${visible ? " active" : ""}" type="button" data-part-visible="${escapeHtml(part.id)}">${escapeHtml(t("visible"))}</button>
+            <button class="mini-toggle solo${solo ? " active" : ""}" type="button" data-part-solo="${escapeHtml(part.id)}">${escapeHtml(t("onlyThis"))}</button>
+          </div>`;
+        wrap.appendChild(card);
+      }
+      wrap.querySelectorAll("[data-part-visible]").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          togglePartVisible(button.dataset.partVisible);
+        });
+      });
+      wrap.querySelectorAll("[data-part-solo]").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          togglePartSolo(button.dataset.partSolo);
+        });
+      });
+      $("partRail").hidden = false;
+      updatePartScrollButtons();
+    }
+
+    function isPartVisible(partId) {
+      if (!supportsPartRail()) return true;
+      if (!partId) return true;
+      if (state.soloPartId) return partId === state.soloPartId;
+      return state.partVisible.get(partId) !== false;
+    }
+
+    function supportsPartRail() {
+      const project = state.manifest.project || {};
+      const parts = state.manifest.parts || [];
+      return project.kind === "assembly" && parts.length > 1;
+    }
+
+    function togglePartVisible(partId) {
+      if (!partId) return;
+      const next = state.partVisible.get(partId) === false;
+      state.partVisible.set(partId, next);
+      if (!next && state.soloPartId === partId) state.soloPartId = null;
+      syncAnnotationTargetVisibility();
+      renderParts();
+      renderAnnotations();
+      updateCounts();
+      renderPreview();
+    }
+
+    function togglePartSolo(partId) {
+      if (!partId) return;
+      state.soloPartId = state.soloPartId === partId ? null : partId;
+      if (state.soloPartId) state.partVisible.set(partId, true);
+      syncAnnotationTargetVisibility();
+      renderParts();
+      renderAnnotations();
+      updateCounts();
+      renderPreview();
+    }
+
+    function syncAnnotationTargetVisibility() {
+      const active = getAnnotation(state.activeAnnotationId);
+      if (active && active.target && active.target.part_id && !isPartVisible(active.target.part_id)) {
+        state.activeAnnotationId = null;
+      }
+      const picking = getAnnotation(state.pickAnnotationId);
+      if (picking && picking.target && picking.target.part_id && !isPartVisible(picking.target.part_id)) {
+        state.pickAnnotationId = null;
+      }
+    }
+
+    function scrollParts(direction) {
+      $("parts").scrollTop += direction * 132;
+      updatePartScrollButtons();
+    }
+
+    function updatePartScrollButtons() {
+      const strip = $("parts");
+      const hasOverflow = strip.scrollHeight > strip.clientHeight + 2;
+      $("partScrollUp").disabled = !hasOverflow || strip.scrollTop <= 0;
+      $("partScrollDown").disabled = !hasOverflow || strip.scrollTop + strip.clientHeight >= strip.scrollHeight - 2;
+    }
+
+    function addAnnotation() {
+      ensureAnnotationShape();
+      const annotation = {
+        id: `ann-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        text: "",
+        target: null,
+        camera: {rotX: state.rotX, rotY: state.rotY, zoom: state.zoom},
+        status: "open"
+      };
+      state.annotations.annotations.push(annotation);
+      state.activeAnnotationId = annotation.id;
+      state.pickAnnotationId = null;
+      setActivePanel("notes", false);
+      renderAnnotations();
+      updateCounts();
+      renderPreview();
+    }
+
+    function renderAnnotations() {
+      ensureAnnotationShape();
+      const wrap = $("annotations");
+      wrap.innerHTML = "";
+      const annotations = state.annotations.annotations || [];
+      if (!annotations.length) {
+        wrap.innerHTML = `<div class="muted">${escapeHtml(t("noAnnotations"))}</div>`;
+        return;
+      }
+      annotations.forEach((ann, index) => {
+        const item = document.createElement("div");
+        item.className = [
+          "annotation",
+          state.activeAnnotationId === ann.id ? "active" : "",
+          state.pickAnnotationId === ann.id ? "pick-mode" : "",
+          ann.text ? "" : "draft",
+        ].filter(Boolean).join(" ");
+        item.dataset.annotationId = ann.id;
+        item.innerHTML = `
+          <div class="annotation-top">
+            <span class="annotation-index">${index + 1}</span>
+            <span class="muted">${escapeHtml(ann.status || "open")}</span>
+          </div>
+          <div class="annotation-target">${escapeHtml(annotationTargetText(ann))}</div>
+          <textarea data-annotation-text="${escapeHtml(ann.id)}" placeholder="${escapeHtml(t("annotationPlaceholder"))}">${escapeHtml(ann.text || "")}</textarea>
+          <div class="annotation-actions">
+            <button type="button" data-annotation-pick="${escapeHtml(ann.id)}">${escapeHtml(ann.target ? t("chooseDifferentTarget") : t("chooseTarget"))}</button>
+            <button type="button" data-annotation-clear="${escapeHtml(ann.id)}" ${ann.target ? "" : "disabled"}>${escapeHtml(t("clearTarget"))}</button>
+          </div>`;
+        item.addEventListener("click", event => {
+          if (event.target.closest("button, textarea")) return;
+          selectAnnotation(ann.id, false);
+        });
+        wrap.appendChild(item);
+      });
+
+      wrap.querySelectorAll("[data-annotation-text]").forEach(textarea => {
+        textarea.addEventListener("input", event => {
+          const ann = getAnnotation(textarea.dataset.annotationText);
+          if (!ann) return;
+          ann.text = event.target.value;
+          state.activeAnnotationId = ann.id;
+          updateCounts();
+          renderPreview();
+        });
+        textarea.addEventListener("focus", () => {
+          const ann = getAnnotation(textarea.dataset.annotationText);
+          if (ann) selectAnnotation(ann.id, false, false);
+        });
+      });
+      wrap.querySelectorAll("[data-annotation-pick]").forEach(button => {
+        button.addEventListener("click", () => beginPickTarget(button.dataset.annotationPick));
+      });
+      wrap.querySelectorAll("[data-annotation-clear]").forEach(button => {
+        button.addEventListener("click", () => clearAnnotationTarget(button.dataset.annotationClear));
+      });
+    }
+
+    function ensureAnnotationShape() {
+      if (!state.annotations || typeof state.annotations !== "object") {
+        state.annotations = {schema: "engineering-3d-modeling.annotations.v1", annotations: []};
+      }
+      if (!Array.isArray(state.annotations.annotations)) state.annotations.annotations = [];
+    }
+
+    function getAnnotation(id) {
+      if (!id) return null;
+      ensureAnnotationShape();
+      return state.annotations.annotations.find(ann => ann.id === id) || null;
+    }
+
+    function annotationIndex(id) {
+      ensureAnnotationShape();
+      const index = state.annotations.annotations.findIndex(ann => ann.id === id);
+      return index >= 0 ? index + 1 : "";
+    }
+
+    function annotationTargetText(ann) {
+      if (!ann.target) return t("globalAnnotation");
+      return t("targetLabel", {
+        label: ann.target.label || ann.target.ref || ann.target.feature_id || ann.target.part_id || "target",
+        type: ann.target.entity_type || "ref",
+      });
+    }
+
+    function selectAnnotation(id, scroll = true, rerender = true) {
+      const ann = getAnnotation(id);
+      if (!ann) return;
+      state.activeAnnotationId = ann.id;
+      state.pickAnnotationId = null;
+      setActivePanel("notes", false);
+      if (rerender) renderAnnotations();
+      renderPreview();
+      if (scroll) {
+        const item = document.querySelector(`[data-annotation-id="${CSS.escape(ann.id)}"]`);
+        if (item) item.scrollIntoView({block: "nearest"});
+      }
+    }
+
+    function beginPickTarget(id) {
+      const ann = getAnnotation(id);
+      if (!ann) return;
+      state.activeAnnotationId = ann.id;
+      state.pickAnnotationId = ann.id;
+      setActivePanel("notes", false);
+      renderAnnotations();
+      renderPreview();
+    }
+
+    function clearAnnotationTarget(id) {
+      const ann = getAnnotation(id);
+      if (!ann) return;
+      ann.target = null;
+      state.activeAnnotationId = ann.id;
+      if (state.pickAnnotationId === ann.id) state.pickAnnotationId = null;
+      renderAnnotations();
+      renderPreview();
+    }
+
+    function assignTargetToAnnotation(id, ref) {
+      const ann = getAnnotation(id);
+      if (!ann || !ref) return;
+      ann.target = {
+        ref: ref.id,
+        entity_type: ref.entity_type || "",
+        part_id: ref.part_id || "",
+        feature_id: ref.feature_id || "",
+        label: ref.label || "",
+        snapped_point: ref.world_point || null,
+        normal: ref.normal || null
+      };
+      ann.camera = {rotX: state.rotX, rotY: state.rotY, zoom: state.zoom};
+      state.activeAnnotationId = ann.id;
+      state.pickAnnotationId = null;
+      renderAnnotations();
+      renderPreview();
+    }
+
+    function project(point) {
+      const [x, y, z] = point;
+      const cy = Math.cos(state.rotY), sy = Math.sin(state.rotY);
+      const cx = Math.cos(state.rotX), sx = Math.sin(state.rotX);
+      const x1 = x * cy + z * sy;
+      const z1 = -x * sy + z * cy;
+      const y1 = y * cx - z1 * sx;
+      const z2 = y * sx + z1 * cx;
+      return {x: x1, y: y1, z: z2};
+    }
+
+    function projectedToScreen(point, bounds) {
+      const p = project(point);
+      const scale = Math.min(canvas.width, canvas.height) * 0.42 * state.zoom / (bounds.radius || 1);
+      return {
+        x: canvas.width / 2 + p.x * scale,
+        y: canvas.height / 2 - p.y * scale,
+        z: p.z
+      };
+    }
+
+    function computeBounds(vertices) {
+      if (!vertices || !vertices.length) return {center: [0,0,0], radius: 20};
+      const min = [...vertices[0]], max = [...vertices[0]];
+      for (const v of vertices) {
+        for (let i = 0; i < 3; i++) {
+          min[i] = Math.min(min[i], v[i]);
+          max[i] = Math.max(max[i], v[i]);
+        }
+      }
+      const center = min.map((v, i) => (v + max[i]) / 2);
+      const radius = Math.max(...max.map((v, i) => Math.abs(v - min[i]))) || 1;
+      return {center, radius};
+    }
+
+    function centered(point, center) {
+      return [point[0] - center[0], point[1] - center[1], point[2] - center[2]];
+    }
+
+    const AXIS_INDEX = {x: 0, y: 1, z: 2};
+
+    function numeric(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function parameterById(id) {
+      return (state.manifest.parameters || []).find(param => param.id === id) || null;
+    }
+
+    function activePreviewEffects() {
+      const effects = [];
+      const meshEffects = state.mesh && Array.isArray(state.mesh.parameter_effects) ? state.mesh.parameter_effects : [];
+      for (const effect of meshEffects) {
+        if (effect && effect.parameter_id) effects.push(effect);
+      }
+      for (const param of state.manifest.parameters || []) {
+        if (param.preview && typeof param.preview === "object") {
+          effects.push({...param.preview, parameter_id: param.id});
+        }
+      }
+      return effects.filter(effect => effect.effect && effect.effect !== "none");
+    }
+
+    function effectAxes(effect) {
+      if (Array.isArray(effect.axes)) return effect.axes.map(axis => AXIS_INDEX[axis]).filter(index => index !== undefined);
+      if (effect.effect === "scale_uniform") return [0, 1, 2];
+      if (effect.effect === "scale_radial" || effect.effect === "offset_radial" || effect.effect === "ripple_radial") {
+        const axial = AXIS_INDEX[effect.axis || "x"];
+        return [0, 1, 2].filter(index => index !== axial);
+      }
+      const axis = AXIS_INDEX[effect.axis || "x"];
+      return axis === undefined ? [] : [axis];
+    }
+
+    function effectOrigin(effect, bounds) {
+      if (Array.isArray(effect.origin) && effect.origin.length === 3) return effect.origin;
+      if (effect.anchor === "origin") return [0, 0, 0];
+      return bounds.center || [0, 0, 0];
+    }
+
+    function applyPreviewEffects(point, bounds) {
+      let out = [...point];
+      for (const effect of activePreviewEffects()) {
+        const param = parameterById(effect.parameter_id);
+        if (!param) continue;
+        const baseline = numeric(effect.baseline ?? param.value);
+        const value = numeric(currentParameterValue(param));
+        if (baseline === null || value === null) continue;
+        const axes = effectAxes(effect);
+        const origin = effectOrigin(effect, bounds);
+        if (effect.effect === "offset_axis") {
+          const factor = numeric(effect.factor ?? 1) ?? 1;
+          for (const axis of axes) out[axis] += (value - baseline) * factor;
+        } else if (effect.effect === "offset_radial") {
+          const factor = numeric(effect.factor ?? 1) ?? 1;
+          const delta = (value - baseline) * factor;
+          const vec = axes.map(axis => out[axis] - origin[axis]);
+          const length = Math.hypot(...vec);
+          if (length > 1e-9) {
+            axes.forEach((axis, index) => {
+              out[axis] += (vec[index] / length) * delta;
+            });
+          }
+        } else if (effect.effect === "twist_z") {
+          const factor = numeric(effect.factor ?? 1) ?? 1;
+          const angle = (value - baseline) * Math.PI / 180 * factor;
+          const x = out[0] - origin[0];
+          const y = out[1] - origin[1];
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          out[0] = origin[0] + x * cos - y * sin;
+          out[1] = origin[1] + x * sin + y * cos;
+        } else if (effect.effect === "ripple_radial") {
+          const factor = numeric(effect.factor ?? 1) ?? 1;
+          const delta = normalizedDelta(value, baseline) * (bounds.radius || 1) * 0.12 * factor;
+          const vec = axes.map(axis => out[axis] - origin[axis]);
+          const length = Math.hypot(...vec);
+          const phase = Math.atan2(out[1] - origin[1], out[0] - origin[0]) * 3 + (out[2] - origin[2]) / ((bounds.radius || 1) * 0.35);
+          const ripple = Math.sin(phase) * delta;
+          if (length > 1e-9) {
+            axes.forEach((axis, index) => {
+              out[axis] += (vec[index] / length) * ripple;
+            });
+          }
+        } else if (effect.effect === "generic_morph") {
+          const factor = numeric(effect.factor ?? 1) ?? 1;
+          const delta = normalizedDelta(value, baseline) * (bounds.radius || 1) * 0.08 * factor;
+          out[0] += Math.sin((out[2] - origin[2]) / ((bounds.radius || 1) * 0.5) + 1.7) * delta;
+          out[1] += Math.cos((out[0] - origin[0]) / ((bounds.radius || 1) * 0.5) + 0.9) * delta;
+          out[2] += Math.sin((out[1] - origin[1]) / ((bounds.radius || 1) * 0.5) + 2.1) * delta * 0.5;
+        } else {
+          if (Math.abs(baseline) < 1e-9) continue;
+          const ratio = value / baseline;
+          for (const axis of axes) out[axis] = origin[axis] + (out[axis] - origin[axis]) * ratio;
+        }
+      }
+      return out;
+    }
+
+    function normalizedDelta(value, baseline) {
+      const denominator = Math.max(Math.abs(baseline), 1);
+      return Math.max(-1.5, Math.min(1.5, (value - baseline) / denominator));
+    }
+
+    function transformedVertices(mesh) {
+      const vertices = mesh.vertices || [];
+      const baseBounds = computeBounds(vertices);
+      state.previewBaseBounds = baseBounds;
+      return vertices.map(vertex => applyPreviewEffects(vertex, baseBounds));
+    }
+
+    function previewPoint(point) {
+      if (!state.mesh || !state.previewBaseBounds) return point;
+      return applyPreviewEffects(point, state.previewBaseBounds);
+    }
+
+    function centroid(points) {
+      if (!points.length) return [0, 0, 0];
+      const sum = points.reduce((acc, point) => [acc[0] + point[0], acc[1] + point[1], acc[2] + point[2]], [0, 0, 0]);
+      return sum.map(value => value / points.length);
+    }
+
+    function faceNormal(points) {
+      if (points.length < 3) return null;
+      const a = points[0], b = points[1], c = points[2];
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const normal = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+      ];
+      const length = Math.hypot(normal[0], normal[1], normal[2]);
+      return length > 1e-9 ? normal.map(value => value / length) : null;
+    }
+
+    function renderPreview() {
+      if (!ctx) return;
+      canvas.classList.toggle("picking", Boolean(state.pickAnnotationId));
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#e9edf2";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+
+      const mesh = state.mesh;
+      if (mesh && Array.isArray(mesh.vertices) && Array.isArray(mesh.faces)) {
+        drawMesh(mesh);
+        $("hud").textContent = hudText();
+      } else {
+        drawRefsOnly();
+        const notice = previewPatchNotice();
+        $("hud").innerHTML = t("hudNoMesh") + (notice ? ` ${escapeHtml(notice)}` : "");
+      }
+    }
+
+    function hudText() {
+      const notice = previewPatchNotice();
+      const suffix = notice ? ` ${notice}` : "";
+      if (state.pickAnnotationId) {
+        return t("hudPickTarget", {index: annotationIndex(state.pickAnnotationId)}) + suffix;
+      }
+      if (state.activeAnnotationId) {
+        return t("hudSelected", {index: annotationIndex(state.activeAnnotationId)}) + suffix;
+      }
+      return t("hudReady") + suffix;
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = "#d2d8e2";
+      ctx.lineWidth = 1;
+      const step = Math.max(24, Math.floor(canvas.width / 18));
+      for (let x = canvas.width % step; x < canvas.width; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = canvas.height % step; y < canvas.height; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+    }
+
+    function drawMesh(mesh) {
+      const vertices = transformedVertices(mesh);
+      const bounds = computeBounds(vertices);
+      state.viewBounds = bounds;
+      state.renderedFaces = [];
+      const faces = mesh.faces.map((face, faceIndex) => {
+        const indices = face.indices || face;
+        const pts = indices.map(i => projectedToScreen(centered(vertices[i], bounds.center), bounds));
+        const originalPoints = indices.map(i => mesh.vertices[i]).filter(Boolean);
+        const z = pts.reduce((sum, p) => sum + p.z, 0) / Math.max(1, pts.length);
+        return {
+          face,
+          faceIndex,
+          indices,
+          pts,
+          z,
+          worldPoint: face.world_point || centroid(originalPoints),
+          normal: face.normal || faceNormal(originalPoints),
+          partId: face.part_id || face.part || "",
+          featureId: face.feature_id || "",
+          originalPoints,
+        };
+      }).sort((a, b) => a.z - b.z);
+
+      for (const item of faces) {
+        const partId = item.partId;
+        if (!isPartVisible(partId)) continue;
+        if (!item.pts.length) continue;
+        ctx.beginPath();
+        ctx.moveTo(item.pts[0].x, item.pts[0].y);
+        for (const p of item.pts.slice(1)) ctx.lineTo(p.x, p.y);
+        ctx.closePath();
+        ctx.fillStyle = partId ? "rgba(42, 105, 170, .28)" : "rgba(42, 105, 170, .20)";
+        ctx.strokeStyle = "rgba(37, 55, 77, .35)";
+        ctx.fill();
+        ctx.stroke();
+        state.renderedFaces.push(item);
+      }
+
+      if (state.pickAnnotationId) drawRefMarkers(bounds);
+      drawAnnotationMarkers(bounds);
+    }
+
+    function drawRefsOnly() {
+      state.renderedFaces = [];
+      state.previewBaseBounds = null;
+      const refs = visibleRefs().filter(r => Array.isArray(r.world_point));
+      const annotationPoints = visibleAnnotationTargets().map(item => item.point);
+      const vertices = refs.map(r => r.world_point).concat(annotationPoints);
+      const bounds = computeBounds(vertices);
+      state.viewBounds = bounds;
+      if (state.pickAnnotationId) drawRefMarkers(bounds);
+      drawAnnotationMarkers(bounds);
+    }
+
+    function visibleRefs() {
+      return (state.manifest.refs || []).filter(ref => !ref.part_id || isPartVisible(ref.part_id));
+    }
+
+    function drawRefMarkers(bounds) {
+      for (const ref of visibleRefs()) {
+        if (!Array.isArray(ref.world_point)) continue;
+        const point = projectedToScreen(centered(previewPoint(ref.world_point), bounds.center), bounds);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#0b7f71";
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    function drawAnnotationMarkers(bounds) {
+      for (const item of visibleAnnotationTargets()) {
+        const point = projectedToScreen(centered(previewPoint(item.point), bounds.center), bounds);
+        const active = state.activeAnnotationId === item.annotation.id;
+        const label = String(item.index);
+        const width = Math.max(22, 14 + label.length * 8);
+        const height = 22;
+        ctx.beginPath();
+        roundRect(ctx, point.x - width / 2, point.y - height - 8, width, height, 6);
+        ctx.fillStyle = active ? "#d9480f" : "#1769aa";
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "700 12px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, point.x, point.y - height / 2 - 8);
+      }
+    }
+
+    function roundRect(context, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      context.moveTo(x + r, y);
+      context.arcTo(x + width, y, x + width, y + height, r);
+      context.arcTo(x + width, y + height, x, y + height, r);
+      context.arcTo(x, y + height, x, y, r);
+      context.arcTo(x, y, x + width, y, r);
+      context.closePath();
+    }
+
+    function visibleAnnotationTargets() {
+      ensureAnnotationShape();
+      return state.annotations.annotations
+        .map((annotation, index) => {
+          const target = annotation.target || {};
+          const point = target.snapped_point || target.world_point;
+          return {annotation, index: index + 1, point, target};
+        })
+        .filter(item => Array.isArray(item.point) && (!item.target.part_id || isPartVisible(item.target.part_id)));
+    }
+
+    function nearestRef(x, y) {
+      const refs = visibleRefs().filter(r => Array.isArray(r.world_point));
+      if (!refs.length) return null;
+      const bounds = state.viewBounds || computeBounds(refs.map(r => r.world_point));
+      let best = null;
+      for (const ref of refs) {
+        const point = projectedToScreen(centered(previewPoint(ref.world_point), bounds.center), bounds);
+        const dist = Math.hypot(point.x - x, point.y - y);
+        if (!best || dist < best.dist) best = {ref, dist};
+      }
+      return best && best.dist < 24 ? best.ref : null;
+    }
+
+    function nearestMeshTarget(x, y) {
+      const faces = state.renderedFaces || [];
+      if (!faces.length) return null;
+      let bestVertex = null;
+      let bestEdge = null;
+      let bestFace = null;
+      for (let faceOrder = faces.length - 1; faceOrder >= 0; faceOrder--) {
+        const item = faces[faceOrder];
+        for (let i = 0; i < item.pts.length; i++) {
+          const screen = item.pts[i];
+          const dist = Math.hypot(screen.x - x, screen.y - y);
+          if (!bestVertex || dist < bestVertex.dist) {
+            bestVertex = {dist, item, vertexSlot: i};
+          }
+        }
+        for (let i = 0; i < item.pts.length; i++) {
+          const a = item.pts[i];
+          const b = item.pts[(i + 1) % item.pts.length];
+          const dist = distanceToSegment(x, y, a.x, a.y, b.x, b.y);
+          if (!bestEdge || dist < bestEdge.dist) {
+            bestEdge = {dist, item, edgeSlot: i};
+          }
+        }
+        if (!bestFace && pointInPolygon(x, y, item.pts)) bestFace = item;
+      }
+      if (bestVertex && bestVertex.dist < 14) return meshVertexRef(bestVertex.item, bestVertex.vertexSlot);
+      if (bestEdge && bestEdge.dist < 10) return meshEdgeRef(bestEdge.item, bestEdge.edgeSlot);
+      if (bestFace) return meshFaceRef(bestFace);
+      return null;
+    }
+
+    function meshBaseLabel(item) {
+      return item.featureId || item.partId || "model";
+    }
+
+    function meshFaceRef(item) {
+      const label = `${meshBaseLabel(item)} face`;
+      return {
+        id: `mesh:${meshBaseLabel(item)}:face:${item.face.id || item.faceIndex}`,
+        entity_type: "face",
+        part_id: item.partId,
+        feature_id: item.featureId,
+        label,
+        world_point: item.worldPoint,
+        normal: item.normal,
+      };
+    }
+
+    function meshEdgeRef(item, edgeSlot) {
+      const a = item.originalPoints[edgeSlot];
+      const b = item.originalPoints[(edgeSlot + 1) % item.originalPoints.length];
+      const midpoint = a && b ? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2] : item.worldPoint;
+      const label = `${meshBaseLabel(item)} edge`;
+      return {
+        id: `mesh:${meshBaseLabel(item)}:face:${item.face.id || item.faceIndex}:edge:${edgeSlot}`,
+        entity_type: "edge",
+        part_id: item.partId,
+        feature_id: item.featureId,
+        label,
+        world_point: midpoint,
+        normal: item.normal,
+      };
+    }
+
+    function meshVertexRef(item, vertexSlot) {
+      const vertexIndex = item.indices[vertexSlot];
+      const label = `${meshBaseLabel(item)} vertex`;
+      return {
+        id: `mesh:${meshBaseLabel(item)}:vertex:${vertexIndex}`,
+        entity_type: "vertex",
+        part_id: item.partId,
+        feature_id: item.featureId,
+        label,
+        world_point: item.originalPoints[vertexSlot] || item.worldPoint,
+        normal: item.normal,
+      };
+    }
+
+    function pointInPolygon(x, y, pts) {
+      let inside = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].x, yi = pts[i].y;
+        const xj = pts[j].x, yj = pts[j].y;
+        const intersects = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    function distanceToSegment(px, py, ax, ay, bx, by) {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lengthSq = dx * dx + dy * dy;
+      if (lengthSq <= 1e-9) return Math.hypot(px - ax, py - ay);
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq));
+      const x = ax + t * dx;
+      const y = ay + t * dy;
+      return Math.hypot(px - x, py - y);
+    }
+
+    function nearestAnnotationMarker(x, y) {
+      const bounds = state.viewBounds;
+      let best = null;
+      for (const item of visibleAnnotationTargets()) {
+        const point = projectedToScreen(centered(item.point, bounds.center), bounds);
+        const markerX = point.x;
+        const markerY = point.y - 19;
+        const dist = Math.hypot(markerX - x, markerY - y);
+        if (!best || dist < best.dist) best = {annotation: item.annotation, dist};
+      }
+      return best && best.dist < 26 ? best.annotation : null;
+    }
+
+    async function saveReview() {
+      $("saveStatus").textContent = "";
+      const payload = {
+        annotations: state.annotations,
+        parameter_patch: state.patch,
+      };
+      try {
+        const response = await fetch("/api/save-review", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error(await response.text());
+        $("saveStatus").textContent = t("saved");
+      } catch (error) {
+        $("saveStatus").textContent = t("saveFailed");
+        console.warn(error);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[ch]));
+    }
+
+    $("manifestFile").addEventListener("change", event => readFileInput(event.target, data => {
+      state.manifest = data;
+      initializeFromManifest();
+    }));
+    $("annotationsFile").addEventListener("change", event => readFileInput(event.target, data => {
+      state.annotations = data;
+      renderAll();
+    }));
+    $("patchFile").addEventListener("change", event => readFileInput(event.target, data => {
+      state.patch = data;
+      renderAll();
+    }));
+    document.querySelectorAll("[data-lang]").forEach(button => {
+      button.addEventListener("click", () => setLanguage(button.dataset.lang));
+    });
+    document.querySelectorAll("[data-panel-tab]").forEach(button => {
+      button.addEventListener("click", () => setActivePanel(button.dataset.panelTab));
+    });
+    $("partScrollUp").addEventListener("click", () => scrollParts(-1));
+    $("partScrollDown").addEventListener("click", () => scrollParts(1));
+    $("parts").addEventListener("scroll", updatePartScrollButtons);
+    $("saveReview").addEventListener("click", saveReview);
+    $("addAnnotation").addEventListener("click", addAnnotation);
+    $("resetView").addEventListener("click", () => {
+      state.rotX = -0.35; state.rotY = 0.55; state.zoom = 1; renderPreview();
+    });
+
+    canvas.addEventListener("pointerdown", event => {
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      const x = (event.clientX - rect.left) * scale;
+      const y = (event.clientY - rect.top) * scale;
+      if (state.pickAnnotationId) {
+        const ref = nearestRef(x, y) || nearestMeshTarget(x, y);
+        if (ref) {
+          assignTargetToAnnotation(state.pickAnnotationId, ref);
+          return;
+        }
+        $("hud").textContent = t("targetMiss");
+        return;
+      } else {
+        const annotation = nearestAnnotationMarker(x, y);
+        if (annotation) {
+          selectAnnotation(annotation.id);
+          return;
+        }
+      }
+      state.drag = {x: event.clientX, y: event.clientY, moved: false};
+      canvas.setPointerCapture(event.pointerId);
+    });
+    canvas.addEventListener("pointermove", event => {
+      if (!state.drag) return;
+      const dx = event.clientX - state.drag.x;
+      const dy = event.clientY - state.drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 2) state.drag.moved = true;
+      state.rotY += dx * 0.01;
+      state.rotX += dy * 0.01;
+      state.drag.x = event.clientX;
+      state.drag.y = event.clientY;
+      renderPreview();
+    });
+    canvas.addEventListener("pointerup", () => { state.drag = null; });
+    canvas.addEventListener("wheel", event => {
+      event.preventDefault();
+      state.zoom *= event.deltaY < 0 ? 1.08 : 0.92;
+      state.zoom = Math.max(0.2, Math.min(5, state.zoom));
+      renderPreview();
+    }, {passive: false});
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    tryLoadDefaults();
+  </script>
+</body>
+</html>

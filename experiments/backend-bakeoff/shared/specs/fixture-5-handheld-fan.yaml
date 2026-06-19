@@ -1,0 +1,320 @@
+schema_version: engineering_3d_fixture.v0
+fixture_id: fixture-5-handheld-fan-complex-assembly
+title: Handheld fan complex assembly enclosure
+kind: complex_assembly_enclosure
+units: mm
+intent: >
+  Create a compact handheld fan assembly/enclosure from structured component
+  envelopes. The fixture tests whether a backend remains maintainable when a
+  model contains multiple fixed components, several generated parts, named
+  subassemblies, repeated features, validation, and one structural iteration.
+coordinate_system:
+  origin: assembly_center
+  axes:
+    x: device_width_left_right
+    y: device_length_handle_to_fan_head
+    z: device_depth_front_to_back
+layout_defaults:
+  fan_center: [0, 36, 0]
+  handle_center: [0, -32, 0]
+  battery_pair:
+    center_y: -43.5
+    center_z: -9
+    half_spacing_x: 10.5
+  electronics:
+    pwm_controller_board_center: [-6, -10, 7]
+    battery_protection_board_center: [16, -38, 7]
+    charge_module_center: [0, -73, 7]
+    boost_output_module_center: [9, -28, 18.5]
+  screw_bosses:
+    head_centers_xy:
+      - [-24, 60]
+      - [24, 60]
+      - [-24, 15]
+      - [24, 15]
+    handle_centers_xy:
+      - [-22, -80]
+      - [22, -80]
+component_registry:
+  fan_4028:
+    role: fixed_component
+    geometry:
+      type: box_envelope
+      dimensions: [42, 42, 30]
+      nominal_part: 4028_server_fan
+    placement_role: fan_head_center
+    required_clearance: fan_clearance
+    interfaces:
+      airflow_axis: z
+      front_grille_clearance_face: positive_z
+      rear_intake_clearance_face: negative_z
+  battery_left_18650:
+    role: fixed_component
+    geometry:
+      type: cylinder_envelope
+      diameter: 18.6
+      length: 65
+      axis: y
+    placement_role: handle_battery_pair
+    required_clearance: battery_clearance
+  battery_right_18650:
+    role: fixed_component
+    geometry:
+      type: cylinder_envelope
+      diameter: 18.6
+      length: 65
+      axis: y
+    placement_role: handle_battery_pair
+    required_clearance: battery_clearance
+  pwm_controller_board:
+    role: fixed_component
+    geometry:
+      type: box_envelope
+      dimensions: [26, 34, 8]
+    placement_role: upper_handle_board_stack
+    required_clearance: electronics_clearance
+    interfaces:
+      potentiometer_shaft:
+        face_direction: positive_x
+        shaft_diameter: 6
+        keepout_depth: 8
+  battery_protection_board:
+    role: fixed_component
+    geometry:
+      type: box_envelope
+      dimensions: [18, 45, 5]
+    placement_role: lower_handle_board_stack
+    required_clearance: electronics_clearance
+  charge_module:
+    role: fixed_component
+    geometry:
+      type: box_envelope
+      dimensions: [28, 18, 6]
+    placement_role: bottom_handle_charge_port
+    required_clearance: electronics_clearance
+    interfaces:
+      usb_c_port:
+        face_direction: negative_y
+        opening_dimensions: [11, 6]
+        keepout_depth: 8
+  boost_output_module:
+    role: fixed_component
+    geometry:
+      type: box_envelope
+      dimensions: [22, 30, 8]
+    placement_role: rear_handle_board_stack
+    required_clearance: electronics_clearance
+  switch_thumbwheel:
+    role: generated_mechanism_or_fixed_envelope
+    geometry:
+      type: cylinder_envelope
+      diameter: switch_wheel_diameter
+      thickness: 5
+      axis: x
+    placement_role: right_side_thumbwheel
+    required_clearance: switch_clearance
+  switch_drive_gear:
+    role: generated_mechanism_or_fixed_envelope
+    geometry:
+      type: cylinder_envelope
+      diameter: 14
+      thickness: 4
+      axis: x
+    placement_role: potentiometer_drive_gear
+    required_clearance: switch_clearance
+parameters:
+  wall_thickness:
+    value: 2.0
+    unit: mm
+    ui: numeric
+    min: 1.2
+    max: 4
+    edit_test_delta: 0.4
+  fan_clearance:
+    value: 1.0
+    unit: mm
+    ui: numeric
+    min: 0.5
+    max: 3
+    edit_test_delta: 0.5
+  battery_clearance:
+    value: 0.8
+    unit: mm
+    ui: numeric
+    min: 0.4
+    max: 2.5
+  electronics_clearance:
+    value: 0.8
+    unit: mm
+    ui: numeric
+    min: 0.4
+    max: 2.5
+    edit_test_delta: 0.4
+  switch_clearance:
+    value: 0.6
+    unit: mm
+    ui: numeric
+    min: 0.3
+    max: 2
+  shell_split_gap:
+    value: 0.3
+    unit: mm
+    ui: numeric
+    min: 0.1
+    max: 1
+  head_outer_radius:
+    value: 28
+    unit: mm
+    role: layout_parameter
+  handle_width:
+    value: 44
+    unit: mm
+    role: layout_parameter
+  handle_length:
+    value: 92
+    unit: mm
+    role: layout_parameter
+  front_grille_spoke_count:
+    value: 8
+    unit: count
+    min: 6
+    max: 16
+  front_grille_ring_radius:
+    value: 18
+    unit: mm
+    role: layout_parameter
+  screw_boss_outer_diameter:
+    value: 5.2
+    unit: mm
+    ui: numeric
+    min: 4
+    max: 8
+  screw_clearance_diameter:
+    value: 2.2
+    unit: mm
+    ui: numeric
+    min: 1.8
+    max: 3
+  switch_wheel_diameter:
+    value: 18
+    unit: mm
+    ui: numeric
+    min: 12
+    max: 24
+  switch_side_sign:
+    value: 1
+    unit: sign
+    role: layout_parameter
+    allowed_values: [-1, 1]
+    note: 1 places the thumbwheel on the right side; -1 mirrors it to the left side.
+  switch_offset_y:
+    value: -12
+    unit: mm
+    role: layout_parameter
+    edit_test_delta: 4
+layout_requirements:
+  hard_constraints:
+    - Place the 4028 fan in the fan head with airflow along the z axis.
+    - Place two 18650 cells side-by-side in the handle with axes along y.
+    - Place PWM, protection, charge, and boost module envelopes in the handle.
+    - Keep all fixed component envelopes inside the inner assembly envelope.
+    - Preserve declared clearance for fan, batteries, electronics, and switch mechanism.
+    - Generated screw bosses, grille spokes, shell slabs, and shelves must not intersect fixed component envelopes in the validation model.
+    - Provide front grille geometry and a bottom charge-port opening marker.
+    - Support a left-hand switch variant without rewriting generated part code.
+    - Preserve named generated outputs for front shell, rear shell, internal frame, mechanism, and component envelopes.
+  soft_goals:
+    - Keep the model compact enough for a handheld fan.
+    - Favor simple print-oriented solids over decorative surface detail.
+    - Keep enough named parts for user review and future selection/annotation.
+generated_parts:
+  front_shell:
+    required: true
+    features:
+      - fan_head_front_plate
+      - front_grille_ring
+      - radial_grille_spokes
+      - handle_front_cover
+  front_grille:
+    required: true
+    features:
+      - separately_named_grille_ring
+      - radial_grille_spokes
+  rear_shell:
+    required: true
+    features:
+      - fan_head_rear_plate
+      - handle_rear_cover
+      - charge_port_opening_marker
+  internal_frame:
+    required: true
+    features:
+      - battery_tray_rails
+      - pcb_shelves
+      - screw_bosses
+      - handle_screw_bosses
+      - alignment_ribs
+  switch_mechanism:
+    required: true
+    features:
+      - thumbwheel
+      - drive_gear_or_potentiometer_coupler
+validation:
+  hard_checks:
+    - all_components_inside_inner_envelope
+    - min_clearance_by_component_class
+    - generated_feature_bounds_do_not_intersect_fixed_components
+    - fan_centered_in_head
+    - battery_pair_separated
+    - charge_port_marker_aligned
+    - switch_mechanism_near_pwm_potentiometer
+    - battery_cylinder_like_clearance_check
+    - handle_screw_bosses_do_not_intersect_batteries
+    - baseline_and_edited_exports_exist
+  review_outputs:
+    preferred:
+      - named_part_step_files
+      - component_envelope_step_file
+      - assembled_or_exploded_preview
+      - validation_json
+exports:
+  preferred:
+    - step
+    - stl
+    - png_preview
+  required_minimum:
+    - front_shell STEP and STL
+    - front_grille STEP and STL
+    - rear_shell STEP and STL
+    - internal_frame STEP and STL
+    - switch_mechanism STEP and STL
+    - component_envelopes STEP
+acceptance:
+  hard_requirements:
+    - Component registry and placements are explicit in validation output.
+    - Baseline and edited cases regenerate from the same source.
+    - Edited case applies wall_thickness, fan_clearance, electronics_clearance, and switch_offset_y deltas.
+    - Validation reports bounding boxes, clearance checks, named part exports, and soft footprint changes.
+    - Source remains maintainable enough that an agent can identify which code builds each named part.
+    - A left_hand case mirrors the switch mechanism from the same source without backend-specific geometry rewrites.
+    - Battery validation reports cylinder-like axis, radius, length, and pair gap in addition to AABB checks.
+  known_non_goals:
+    - Do not model actual fan blades, electronics traces, fastener threads, material behavior, or final consumer-product styling.
+    - Do not require user-supplied CAD for this fixture; component envelopes are sufficient.
+iteration_case:
+  description: >
+    Increase wall_thickness by 0.4 mm, fan_clearance by 0.5 mm, electronics_clearance
+    by 0.4 mm, and move the switch thumbwheel 4 mm toward the fan head.
+  expected_agent_behavior:
+    - Apply only declared parameter deltas.
+    - Regenerate all named generated parts.
+    - Report how outer dimensions, switch placement, and clearances changed.
+maintainability_edit_case:
+  description: >
+    Exercise source maintainability by adding a left/right switch variant, a
+    separately exported front grille, two handle screw bosses, cylinder-like
+    battery validation, and spec-driven layout coordinates.
+  expected_agent_behavior:
+    - Keep backend-specific changes local to named part builders.
+    - Keep shared layout and validation backend-neutral.
+    - Avoid duplicating left/right switch geometry code in each backend.

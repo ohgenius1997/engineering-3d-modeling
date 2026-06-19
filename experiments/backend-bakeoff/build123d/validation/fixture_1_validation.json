@@ -1,0 +1,75 @@
+{
+  "fixture": "fixture-1-mounting-plate",
+  "status": "pass",
+  "cases": {
+    "baseline": {
+      "parameters": {
+        "plate_length": 80,
+        "plate_width": 50,
+        "plate_thickness": 4,
+        "corner_radius": 4,
+        "edge_fillet": 1,
+        "hole_diameter": 3.2,
+        "bolt_pattern_x": 62,
+        "bolt_pattern_y": 32,
+        "recess_length": 36,
+        "recess_width": 18,
+        "recess_depth": 1
+      },
+      "valid": true,
+      "bbox_mm": {
+        "x": 80.0,
+        "y": 50.0,
+        "z": 4.0
+      },
+      "expected_bbox_mm": {
+        "x": 80,
+        "y": 50,
+        "z": 4
+      },
+      "bbox_within_tolerance": true,
+      "exports": [
+        "outputs/fixture_1/baseline/mounting_plate.step",
+        "outputs/fixture_1/baseline/mounting_plate.stl"
+      ]
+    },
+    "edited": {
+      "parameters": {
+        "plate_length": 80,
+        "plate_width": 50,
+        "plate_thickness": 6,
+        "corner_radius": 6,
+        "edge_fillet": 1.5,
+        "hole_diameter": 3.6,
+        "bolt_pattern_x": 62,
+        "bolt_pattern_y": 32,
+        "recess_length": 36,
+        "recess_width": 18,
+        "recess_depth": 1
+      },
+      "valid": true,
+      "bbox_mm": {
+        "x": 80.0,
+        "y": 50.0,
+        "z": 6.0
+      },
+      "expected_bbox_mm": {
+        "x": 80,
+        "y": 50,
+        "z": 6
+      },
+      "bbox_within_tolerance": true,
+      "exports": [
+        "outputs/fixture_1/edited/mounting_plate.step",
+        "outputs/fixture_1/edited/mounting_plate.stl"
+      ]
+    }
+  },
+  "outputs": [
+    "outputs/fixture_1/baseline/mounting_plate.step",
+    "outputs/fixture_1/baseline/mounting_plate.stl",
+    "outputs/fixture_1/edited/mounting_plate.step",
+    "outputs/fixture_1/edited/mounting_plate.stl"
+  ],
+  "warnings": []
+}

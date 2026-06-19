@@ -1,0 +1,60 @@
+{
+  "status": "pass",
+  "step_path": "backend-bakeoff/shared/inputs/cad/charge_discharge_module/module.step",
+  "step_size_bytes": 5911993,
+  "cadquery_version": "2.7.0",
+  "topology": {
+    "top_shape_type": "Compound",
+    "top_valid": false,
+    "workplane_object_count": 1,
+    "counts": {
+      "compounds": {
+        "total": 1,
+        "valid": 0,
+        "invalid": 1
+      },
+      "solids": {
+        "total": 229,
+        "valid": 224,
+        "invalid": 5
+      },
+      "shells": {
+        "total": 229,
+        "valid": 224,
+        "invalid": 5
+      },
+      "faces": {
+        "total": 4706,
+        "valid": 4701,
+        "invalid": 5
+      },
+      "edges": {
+        "total": 10882,
+        "valid": 10882,
+        "invalid": 0
+      },
+      "vertices": {
+        "total": 6707,
+        "valid": 6707,
+        "invalid": 0
+      }
+    }
+  },
+  "bbox_mm": {
+    "x": 28.0461,
+    "y": 18.4964,
+    "z": 5.1914,
+    "xmin": -0.0461,
+    "ymin": -9.4964,
+    "zmin": -1.1914,
+    "xmax": 28.0,
+    "ymax": 9.0,
+    "zmax": 4.0
+  },
+  "recommended_fixture3_import_policy": {
+    "use_imported_cad_for_visual_reference": true,
+    "use_top_compound_for_boolean_collision": false,
+    "use_bbox_envelope_for_collision": true,
+    "reason": "Top-level STEP compound is invalid and a small number of imported solids/faces are invalid. A bbox/envelope is the most reproducible conservative path for current backend bake-off collision checks."
+  }
+}

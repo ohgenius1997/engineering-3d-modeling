@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engineering-3d-modeling.annotations.v1",
+  "type": "object",
+  "required": ["schema", "annotations"],
+  "properties": {
+    "schema": {"const": "engineering-3d-modeling.annotations.v1"},
+    "annotations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "created_at", "text", "target", "status"],
+        "properties": {
+          "id": {"type": "string"},
+          "created_at": {"type": "string"},
+          "text": {"type": "string"},
+          "target": {
+            "oneOf": [
+              {"type": "null"},
+              {
+                "type": "object",
+                "required": ["ref"],
+                "properties": {
+                  "ref": {"type": "string"},
+                  "entity_type": {"type": "string"},
+                  "part_id": {"type": "string"},
+                  "feature_id": {"type": "string"},
+                  "label": {"type": "string"},
+                  "snapped_point": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3
+                  },
+                  "normal": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                }
+              }
+            ]
+          },
+          "camera": {"type": "object"},
+          "status": {"type": "string", "enum": ["open", "accepted", "rejected", "resolved"]}
+        }
+      }
+    }
+  }
+}

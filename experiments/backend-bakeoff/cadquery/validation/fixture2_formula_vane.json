@@ -1,0 +1,283 @@
+{
+  "fixture": "fixture_2",
+  "status": "pass",
+  "cadquery_version": "2.7.0",
+  "source_spec": "../shared/specs/fixture-2-formula-vane.yaml",
+  "analytical_definitions": {
+    "duct_radius_law": "quintic_smoothstep_radius",
+    "vane_profile": "naca_0012_symmetric",
+    "vane_twist_law": "linear_angle_interpolation"
+  },
+  "variants": {
+    "baseline": {
+      "parameters": {
+        "duct_length": 80,
+        "inlet_radius": 28,
+        "outlet_radius": 22,
+        "wall_thickness": 2,
+        "vane_count": 5,
+        "vane_chord": 26,
+        "vane_span": 18,
+        "naca_thickness_ratio": 0.12,
+        "inlet_angle_deg": 18,
+        "outlet_angle_deg": 34,
+        "section_count": 9
+      },
+      "formula_checks": {
+        "radius_start": true,
+        "radius_end": true,
+        "sample_count": 11,
+        "profile_checks": {
+          "chord_mm": {
+            "expected": 26,
+            "actual": 26.0,
+            "pass": true
+          },
+          "max_thickness_mm": {
+            "expected_about": 3.12,
+            "actual": 3.1208,
+            "pass": true
+          },
+          "symmetry_mm": {
+            "max_abs_midline_error": 0.0,
+            "pass": true
+          }
+        }
+      },
+      "radius_samples": [
+        {
+          "t": 0.0,
+          "radius_mm": 28.0,
+          "twist_angle_deg": 18.0
+        },
+        {
+          "t": 0.1,
+          "radius_mm": 27.94864,
+          "twist_angle_deg": 19.6
+        },
+        {
+          "t": 0.2,
+          "radius_mm": 27.65248,
+          "twist_angle_deg": 21.2
+        },
+        {
+          "t": 0.3,
+          "radius_mm": 27.02152,
+          "twist_angle_deg": 22.8
+        },
+        {
+          "t": 0.4,
+          "radius_mm": 26.09536,
+          "twist_angle_deg": 24.4
+        },
+        {
+          "t": 0.5,
+          "radius_mm": 25.0,
+          "twist_angle_deg": 26.0
+        },
+        {
+          "t": 0.6,
+          "radius_mm": 23.90464,
+          "twist_angle_deg": 27.6
+        },
+        {
+          "t": 0.7,
+          "radius_mm": 22.97848,
+          "twist_angle_deg": 29.2
+        },
+        {
+          "t": 0.8,
+          "radius_mm": 22.34752,
+          "twist_angle_deg": 30.8
+        },
+        {
+          "t": 0.9,
+          "radius_mm": 22.05136,
+          "twist_angle_deg": 32.4
+        },
+        {
+          "t": 1.0,
+          "radius_mm": 22.0,
+          "twist_angle_deg": 34.0
+        }
+      ],
+      "duct_shell": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 80.2702,
+          "y": 56.2702,
+          "z": 56.2528
+        }
+      },
+      "representative_vane": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.8208,
+          "y": 18.2274,
+          "z": 14.8737
+        }
+      },
+      "vane_array": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.8208,
+          "y": 21.7519,
+          "z": 21.8319
+        },
+        "vane_count": 5
+      },
+      "vane_count_requested": 5,
+      "note": "A representative NACA 0012 vane solid and circular vane array were generated and validated.",
+      "outputs": [
+        "outputs/fixture2/duct_shell_baseline.step",
+        "outputs/fixture2/duct_shell_baseline.stl",
+        "outputs/fixture2/naca_vane_baseline.step",
+        "outputs/fixture2/naca_vane_baseline.stl",
+        "outputs/fixture2/vane_array_baseline.step",
+        "outputs/fixture2/vane_array_baseline.stl"
+      ]
+    },
+    "edited": {
+      "parameters": {
+        "duct_length": 80,
+        "inlet_radius": 28,
+        "outlet_radius": 22,
+        "wall_thickness": 2.5,
+        "vane_count": 5,
+        "vane_chord": 26,
+        "vane_span": 18,
+        "naca_thickness_ratio": 0.12,
+        "inlet_angle_deg": 18,
+        "outlet_angle_deg": 42,
+        "section_count": 9
+      },
+      "formula_checks": {
+        "radius_start": true,
+        "radius_end": true,
+        "sample_count": 11,
+        "profile_checks": {
+          "chord_mm": {
+            "expected": 26,
+            "actual": 26.0,
+            "pass": true
+          },
+          "max_thickness_mm": {
+            "expected_about": 3.12,
+            "actual": 3.1208,
+            "pass": true
+          },
+          "symmetry_mm": {
+            "max_abs_midline_error": 0.0,
+            "pass": true
+          }
+        }
+      },
+      "radius_samples": [
+        {
+          "t": 0.0,
+          "radius_mm": 28.0,
+          "twist_angle_deg": 18.0
+        },
+        {
+          "t": 0.1,
+          "radius_mm": 27.94864,
+          "twist_angle_deg": 20.4
+        },
+        {
+          "t": 0.2,
+          "radius_mm": 27.65248,
+          "twist_angle_deg": 22.8
+        },
+        {
+          "t": 0.3,
+          "radius_mm": 27.02152,
+          "twist_angle_deg": 25.2
+        },
+        {
+          "t": 0.4,
+          "radius_mm": 26.09536,
+          "twist_angle_deg": 27.6
+        },
+        {
+          "t": 0.5,
+          "radius_mm": 25.0,
+          "twist_angle_deg": 30.0
+        },
+        {
+          "t": 0.6,
+          "radius_mm": 23.90464,
+          "twist_angle_deg": 32.4
+        },
+        {
+          "t": 0.7,
+          "radius_mm": 22.97848,
+          "twist_angle_deg": 34.8
+        },
+        {
+          "t": 0.8,
+          "radius_mm": 22.34752,
+          "twist_angle_deg": 37.2
+        },
+        {
+          "t": 0.9,
+          "radius_mm": 22.05136,
+          "twist_angle_deg": 39.6
+        },
+        {
+          "t": 1.0,
+          "radius_mm": 22.0,
+          "twist_angle_deg": 42.0
+        }
+      ],
+      "duct_shell": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 80.2702,
+          "y": 56.2702,
+          "z": 56.2528
+        }
+      },
+      "representative_vane": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.8208,
+          "y": 18.2346,
+          "z": 17.6316
+        }
+      },
+      "vane_array": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.8208,
+          "y": 22.6625,
+          "z": 23.6822
+        },
+        "vane_count": 5
+      },
+      "vane_count_requested": 5,
+      "note": "A representative NACA 0012 vane solid and circular vane array were generated and validated.",
+      "outputs": [
+        "outputs/fixture2/duct_shell_edited.step",
+        "outputs/fixture2/duct_shell_edited.stl",
+        "outputs/fixture2/naca_vane_edited.step",
+        "outputs/fixture2/naca_vane_edited.stl",
+        "outputs/fixture2/vane_array_edited.step",
+        "outputs/fixture2/vane_array_edited.stl"
+      ]
+    }
+  },
+  "outputs": [
+    "outputs/fixture2/duct_shell_baseline.step",
+    "outputs/fixture2/duct_shell_baseline.stl",
+    "outputs/fixture2/naca_vane_baseline.step",
+    "outputs/fixture2/naca_vane_baseline.stl",
+    "outputs/fixture2/vane_array_baseline.step",
+    "outputs/fixture2/vane_array_baseline.stl",
+    "outputs/fixture2/duct_shell_edited.step",
+    "outputs/fixture2/duct_shell_edited.stl",
+    "outputs/fixture2/naca_vane_edited.step",
+    "outputs/fixture2/naca_vane_edited.stl",
+    "outputs/fixture2/vane_array_edited.step",
+    "outputs/fixture2/vane_array_edited.stl"
+  ]
+}

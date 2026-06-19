@@ -1,0 +1,268 @@
+{
+  "fixture": "fixture-2-formula-vane",
+  "status": "pass",
+  "analytical_definitions": {
+    "duct_radius_law": "quintic_smoothstep_radius",
+    "vane_profile": "naca_0012_symmetric",
+    "vane_twist_law": "linear_angle_interpolation"
+  },
+  "cases": {
+    "baseline": {
+      "parameters": {
+        "duct_length": 80,
+        "inlet_radius": 28,
+        "outlet_radius": 22,
+        "wall_thickness": 2,
+        "vane_count": 5,
+        "vane_chord": 26,
+        "vane_span": 18,
+        "naca_thickness_ratio": 0.12,
+        "inlet_angle_deg": 18,
+        "outlet_angle_deg": 34,
+        "section_count": 9
+      },
+      "duct_shell": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 80.0,
+          "y": 56.0,
+          "z": 56.0
+        }
+      },
+      "representative_twisted_vane": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.7173,
+          "y": 18.0,
+          "z": 14.7912
+        }
+      },
+      "vane_array": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.7173,
+          "y": 27.9224,
+          "z": 29.2982
+        },
+        "vane_count": 5
+      },
+      "formula_checks": {
+        "radius_samples": [
+          {
+            "t": 0.0,
+            "radius_mm": 28.0,
+            "twist_angle_deg": 18.0
+          },
+          {
+            "t": 0.1,
+            "radius_mm": 27.94864,
+            "twist_angle_deg": 19.6
+          },
+          {
+            "t": 0.2,
+            "radius_mm": 27.65248,
+            "twist_angle_deg": 21.2
+          },
+          {
+            "t": 0.3,
+            "radius_mm": 27.02152,
+            "twist_angle_deg": 22.8
+          },
+          {
+            "t": 0.4,
+            "radius_mm": 26.09536,
+            "twist_angle_deg": 24.4
+          },
+          {
+            "t": 0.5,
+            "radius_mm": 25.0,
+            "twist_angle_deg": 26.0
+          },
+          {
+            "t": 0.6,
+            "radius_mm": 23.90464,
+            "twist_angle_deg": 27.6
+          },
+          {
+            "t": 0.7,
+            "radius_mm": 22.97848,
+            "twist_angle_deg": 29.2
+          },
+          {
+            "t": 0.8,
+            "radius_mm": 22.34752,
+            "twist_angle_deg": 30.8
+          },
+          {
+            "t": 0.9,
+            "radius_mm": 22.05136,
+            "twist_angle_deg": 32.4
+          },
+          {
+            "t": 1.0,
+            "radius_mm": 22.0,
+            "twist_angle_deg": 34.0
+          }
+        ],
+        "radius_start": true,
+        "radius_end": true,
+        "naca_profile": {
+          "sample_count": 238,
+          "chord_mm": 26.0,
+          "expected_chord_mm": 26,
+          "max_thickness_mm": 3.1208,
+          "expected_thickness_mm": 3.12,
+          "max_thickness_error_mm": 0.0008,
+          "max_symmetry_error_mm": 0.0,
+          "section_count": 9
+        }
+      },
+      "formula_within_tolerance": true,
+      "geometry_valid": true,
+      "exports": [
+        "outputs/fixture_2/baseline/duct_shell.step",
+        "outputs/fixture_2/baseline/duct_shell.stl",
+        "outputs/fixture_2/baseline/twisted_vane.step",
+        "outputs/fixture_2/baseline/twisted_vane.stl",
+        "outputs/fixture_2/baseline/vane_array.step",
+        "outputs/fixture_2/baseline/vane_array.stl"
+      ]
+    },
+    "edited": {
+      "parameters": {
+        "duct_length": 80,
+        "inlet_radius": 28,
+        "outlet_radius": 22,
+        "wall_thickness": 2.5,
+        "vane_count": 5,
+        "vane_chord": 26,
+        "vane_span": 18,
+        "naca_thickness_ratio": 0.12,
+        "inlet_angle_deg": 18,
+        "outlet_angle_deg": 42,
+        "section_count": 9
+      },
+      "duct_shell": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 80.0,
+          "y": 56.0,
+          "z": 56.0
+        }
+      },
+      "representative_twisted_vane": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.7173,
+          "y": 18.0,
+          "z": 17.5507
+        }
+      },
+      "vane_array": {
+        "valid_solid": true,
+        "bbox_mm": {
+          "x": 24.7173,
+          "y": 29.6105,
+          "z": 31.102
+        },
+        "vane_count": 5
+      },
+      "formula_checks": {
+        "radius_samples": [
+          {
+            "t": 0.0,
+            "radius_mm": 28.0,
+            "twist_angle_deg": 18.0
+          },
+          {
+            "t": 0.1,
+            "radius_mm": 27.94864,
+            "twist_angle_deg": 20.4
+          },
+          {
+            "t": 0.2,
+            "radius_mm": 27.65248,
+            "twist_angle_deg": 22.8
+          },
+          {
+            "t": 0.3,
+            "radius_mm": 27.02152,
+            "twist_angle_deg": 25.2
+          },
+          {
+            "t": 0.4,
+            "radius_mm": 26.09536,
+            "twist_angle_deg": 27.6
+          },
+          {
+            "t": 0.5,
+            "radius_mm": 25.0,
+            "twist_angle_deg": 30.0
+          },
+          {
+            "t": 0.6,
+            "radius_mm": 23.90464,
+            "twist_angle_deg": 32.4
+          },
+          {
+            "t": 0.7,
+            "radius_mm": 22.97848,
+            "twist_angle_deg": 34.8
+          },
+          {
+            "t": 0.8,
+            "radius_mm": 22.34752,
+            "twist_angle_deg": 37.2
+          },
+          {
+            "t": 0.9,
+            "radius_mm": 22.05136,
+            "twist_angle_deg": 39.6
+          },
+          {
+            "t": 1.0,
+            "radius_mm": 22.0,
+            "twist_angle_deg": 42.0
+          }
+        ],
+        "radius_start": true,
+        "radius_end": true,
+        "naca_profile": {
+          "sample_count": 238,
+          "chord_mm": 26.0,
+          "expected_chord_mm": 26,
+          "max_thickness_mm": 3.1208,
+          "expected_thickness_mm": 3.12,
+          "max_thickness_error_mm": 0.0008,
+          "max_symmetry_error_mm": 0.0,
+          "section_count": 9
+        }
+      },
+      "formula_within_tolerance": true,
+      "geometry_valid": true,
+      "exports": [
+        "outputs/fixture_2/edited/duct_shell.step",
+        "outputs/fixture_2/edited/duct_shell.stl",
+        "outputs/fixture_2/edited/twisted_vane.step",
+        "outputs/fixture_2/edited/twisted_vane.stl",
+        "outputs/fixture_2/edited/vane_array.step",
+        "outputs/fixture_2/edited/vane_array.stl"
+      ]
+    }
+  },
+  "outputs": [
+    "outputs/fixture_2/baseline/duct_shell.step",
+    "outputs/fixture_2/baseline/duct_shell.stl",
+    "outputs/fixture_2/baseline/twisted_vane.step",
+    "outputs/fixture_2/baseline/twisted_vane.stl",
+    "outputs/fixture_2/baseline/vane_array.step",
+    "outputs/fixture_2/baseline/vane_array.stl",
+    "outputs/fixture_2/edited/duct_shell.step",
+    "outputs/fixture_2/edited/duct_shell.stl",
+    "outputs/fixture_2/edited/twisted_vane.step",
+    "outputs/fixture_2/edited/twisted_vane.stl",
+    "outputs/fixture_2/edited/vane_array.step",
+    "outputs/fixture_2/edited/vane_array.stl"
+  ],
+  "warnings": []
+}

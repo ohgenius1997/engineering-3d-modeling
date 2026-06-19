@@ -1,0 +1,144 @@
+candidate: build123d
+tested_on: '2026-06-18'
+tester_thread: codex-build123d-backend-bakeoff
+version_info:
+  backend: 0.10.0
+  python: 3.12.13 (main, Mar  3 2026, 15:35:03) [Clang 21.1.4 ]
+  platform: macOS-26.5-arm64-arm-64bit
+access:
+  install_required: true
+  auth_required: false
+  offline_capable: true
+  install_notes: Installed candidate-local packages under experiments/backend-bakeoff/build123d/.python-packages
+    after sandboxed DNS failure required approved network access.
+hard_gates:
+  text_source: pass
+  headless_scriptable: pass
+  parametric_edit: pass
+  solid_geometry: pass
+  export: pass
+  validation: pass
+  reproducibility: pass
+fixtures:
+  fixture_1:
+    status: pass
+    notes: Generated baseline and edited rounded mounting plates with STEP and STL
+      exports.
+    outputs:
+    - outputs/fixture_1/baseline/mounting_plate.step
+    - outputs/fixture_1/baseline/mounting_plate.stl
+    - outputs/fixture_1/edited/mounting_plate.step
+    - outputs/fixture_1/edited/mounting_plate.stl
+    - validation/fixture_1_validation.json
+  fixture_2:
+    status: pass
+    notes: Formula sampling, quintic duct shell, lofted NACA twist-law vane, circular
+      vane array, parameter edit, STEP, and STL exports passed.
+    outputs:
+    - outputs/fixture_2/baseline/duct_shell.step
+    - outputs/fixture_2/baseline/duct_shell.stl
+    - outputs/fixture_2/baseline/twisted_vane.step
+    - outputs/fixture_2/baseline/twisted_vane.stl
+    - outputs/fixture_2/baseline/vane_array.step
+    - outputs/fixture_2/baseline/vane_array.stl
+    - outputs/fixture_2/edited/duct_shell.step
+    - outputs/fixture_2/edited/duct_shell.stl
+    - outputs/fixture_2/edited/twisted_vane.step
+    - outputs/fixture_2/edited/twisted_vane.stl
+    - outputs/fixture_2/edited/vane_array.step
+    - outputs/fixture_2/edited/vane_array.stl
+    - validation/fixture_2_validation.json
+  fixture_3:
+    status: pass
+    notes: STEP diagnostic found an invalid top-level module compound, so Fixture
+      3 used the measured module bbox envelope for containment, clearance, and collision
+      checks. Generated lower shell, lid, and component envelope outputs.
+    outputs:
+    - outputs/fixture_3_enclosure/lower_shell.step
+    - outputs/fixture_3_enclosure/lower_shell.stl
+    - outputs/fixture_3_enclosure/lid.step
+    - outputs/fixture_3_enclosure/lid.stl
+    - outputs/fixture_3_enclosure/component_envelopes.step
+    - validation/fixture_3_enclosure_validation.json
+    - outputs/fixture_3/module_import_probe_copy.step
+    - validation/fixture_3_import_probe.json
+  fixture_4:
+    status: pass
+    notes: Applied Fixture 4 parameter deltas (`pcb_clearance` +0.4 mm and `wall_thickness`
+      +0.5 mm), regenerated lower shell, lid, and component envelopes, and passed
+      hard containment/clearance/collision checks. Edited height is 34.6914 mm, which
+      exceeds the 34 mm target height soft goal.
+    outputs:
+    - outputs/fixture_4_iteration/lower_shell.step
+    - outputs/fixture_4_iteration/lower_shell.stl
+    - outputs/fixture_4_iteration/lid.step
+    - outputs/fixture_4_iteration/lid.stl
+    - outputs/fixture_4_iteration/component_envelopes.step
+    - validation/fixture_4_iteration_validation.json
+  fixture_5:
+    status: pass
+    notes: Complex handheld-fan assembly generated with named front/rear shells, separate
+      front grille, internal frame, switch mechanism, component envelopes, baseline/edited/left-hand
+      regeneration, and validation.
+    outputs:
+    - outputs/fixture_5_handheld_fan/baseline/front_shell.step
+    - outputs/fixture_5_handheld_fan/baseline/front_shell.stl
+    - outputs/fixture_5_handheld_fan/baseline/front_grille.step
+    - outputs/fixture_5_handheld_fan/baseline/front_grille.stl
+    - outputs/fixture_5_handheld_fan/baseline/rear_shell.step
+    - outputs/fixture_5_handheld_fan/baseline/rear_shell.stl
+    - outputs/fixture_5_handheld_fan/baseline/internal_frame.step
+    - outputs/fixture_5_handheld_fan/baseline/internal_frame.stl
+    - outputs/fixture_5_handheld_fan/baseline/switch_mechanism.step
+    - outputs/fixture_5_handheld_fan/baseline/switch_mechanism.stl
+    - outputs/fixture_5_handheld_fan/baseline/component_envelopes.step
+    - outputs/fixture_5_handheld_fan/edited/front_shell.step
+    - outputs/fixture_5_handheld_fan/edited/front_shell.stl
+    - outputs/fixture_5_handheld_fan/edited/front_grille.step
+    - outputs/fixture_5_handheld_fan/edited/front_grille.stl
+    - outputs/fixture_5_handheld_fan/edited/rear_shell.step
+    - outputs/fixture_5_handheld_fan/edited/rear_shell.stl
+    - outputs/fixture_5_handheld_fan/edited/internal_frame.step
+    - outputs/fixture_5_handheld_fan/edited/internal_frame.stl
+    - outputs/fixture_5_handheld_fan/edited/switch_mechanism.step
+    - outputs/fixture_5_handheld_fan/edited/switch_mechanism.stl
+    - outputs/fixture_5_handheld_fan/edited/component_envelopes.step
+    - outputs/fixture_5_handheld_fan/left_hand/front_shell.step
+    - outputs/fixture_5_handheld_fan/left_hand/front_shell.stl
+    - outputs/fixture_5_handheld_fan/left_hand/front_grille.step
+    - outputs/fixture_5_handheld_fan/left_hand/front_grille.stl
+    - outputs/fixture_5_handheld_fan/left_hand/rear_shell.step
+    - outputs/fixture_5_handheld_fan/left_hand/rear_shell.stl
+    - outputs/fixture_5_handheld_fan/left_hand/internal_frame.step
+    - outputs/fixture_5_handheld_fan/left_hand/internal_frame.stl
+    - outputs/fixture_5_handheld_fan/left_hand/switch_mechanism.step
+    - outputs/fixture_5_handheld_fan/left_hand/switch_mechanism.stl
+    - outputs/fixture_5_handheld_fan/left_hand/component_envelopes.step
+    - validation/fixture_5_handheld_fan_validation.json
+scores:
+  editable_authoring_truth_fit: 4
+  cad_geometry_and_export_quality: 4
+  parameter_iteration: 4
+  formula_math_support: 4
+  assembly_layout_support: 4
+  validation_and_diagnostics: 4
+  agent_ergonomics: 3
+  operational_fit: 3
+blockers: []
+phase_results:
+  phase_4_iteration_workflow:
+    status: pass
+    evidence:
+    - validation/fixture_4_iteration_validation.json
+    notes: Hard checks passed; target height soft goal exceeded after wall and clearance
+      increase.
+  phase_2_core_capability_fixtures:
+    status: pass
+    evidence:
+    - validation/fixture_1_validation.json
+    - validation/fixture_2_validation.json
+  phase_5_complex_assembly:
+    status: pass
+    evidence:
+    - validation/fixture_5_handheld_fan_validation.json
+recommendation: undecided

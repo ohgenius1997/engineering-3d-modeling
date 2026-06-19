@@ -1,0 +1,32 @@
+schema_version: bakeoff.shared_parameters.v0
+created_on: 2026-06-17
+units: mm
+default_tolerances:
+  dimensional_tolerance_mm: 0.1
+  clearance_tolerance_mm: 0.05
+  angular_tolerance_deg: 0.5
+default_exports:
+  cad_exchange:
+    preferred:
+      - step
+      - brep
+    optional:
+      - xbf
+      - f3d
+  print_or_review:
+    preferred:
+      - stl
+      - gltf
+    optional:
+      - 3mf
+validation_report:
+  required_sections:
+    - backend_version
+    - input_spec
+    - parameter_values
+    - generated_outputs
+    - hard_gate_status
+    - dimensional_checks
+    - export_checks
+    - warnings
+    - blockers

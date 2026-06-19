@@ -1,0 +1,97 @@
+{
+  "fixture": "fixture_3",
+  "status": "partial",
+  "cadquery_version": "2.7.0",
+  "source_spec": "../shared/specs/fixture-3-enclosure.yaml",
+  "step_input": "shared/inputs/cad/charge_discharge_module/module.step",
+  "step_exists": true,
+  "step_size_bytes": 5911993,
+  "component_registry_probe": {
+    "battery_21700": {
+      "role": "fixed_component",
+      "geometry": {
+        "type": "cylinder",
+        "diameter": 21,
+        "length": 70,
+        "axis": "x"
+      },
+      "provenance": "nominal_21700_cell_envelope",
+      "required_clearance": "battery_clearance",
+      "keepouts": {
+        "terminal_service_space_positive_x": {
+          "type": "box",
+          "dimensions": [
+            5,
+            24,
+            24
+          ],
+          "relative_to": "battery_positive_x_end"
+        },
+        "terminal_service_space_negative_x": {
+          "type": "box",
+          "dimensions": [
+            3,
+            24,
+            24
+          ],
+          "relative_to": "battery_negative_x_end"
+        }
+      }
+    },
+    "charge_discharge_module": {
+      "role": "fixed_or_imported_component",
+      "geometry": {
+        "type": "imported_cad_or_box_envelope",
+        "measured_bbox_dimensions": [
+          28.0461,
+          18.4964,
+          5.1914
+        ],
+        "fallback_box_dimensions": [
+          45,
+          20,
+          7
+        ],
+        "fallback_orientation": {
+          "x": "board_length",
+          "y": "board_width",
+          "z": "component_height"
+        }
+      },
+      "provenance": "user_supplied_cad_preferred",
+      "required_clearance": "pcb_clearance",
+      "interfaces": {
+        "primary_usb_c_port": {
+          "type": "port_keepout",
+          "face_direction": "positive_x",
+          "opening_dimensions": [
+            11,
+            6
+          ],
+          "keepout_depth": 8
+        },
+        "optional_button_or_led_window": {
+          "type": "optional_keepout",
+          "face_direction": "positive_z",
+          "opening_dimensions": [
+            8,
+            3
+          ],
+          "keepout_depth": 2
+        }
+      }
+    }
+  },
+  "outputs": [],
+  "warnings": [
+    "STEP imported but backend validity check reported false."
+  ],
+  "imported_shape_count": 1,
+  "valid_shape": false,
+  "bbox_mm": {
+    "x": 28.0461,
+    "y": 18.4964,
+    "z": 5.1914
+  },
+  "note": "STEP import/probe succeeded. No enclosure geometry was generated in this run; this was the requested Fixture 3 module import/probe."
+}

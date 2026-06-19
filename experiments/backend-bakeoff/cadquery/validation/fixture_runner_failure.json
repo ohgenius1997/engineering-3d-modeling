@@ -1,0 +1,10 @@
+{
+  "status": "superseded",
+  "note": "An initial Fixture 1 attempt failed when applying an OpenCascade fillet after holes and recess cuts. The runner was changed to use the fixture-allowed chamfer path for the edge_fillet parameter, then Fixture 1 and Fixture 2 passed. This file is retained only to avoid misreading the stale failure as current validation evidence.",
+  "current_evidence": [
+    "validation/fixture1_mounting_plate.json",
+    "validation/fixture2_formula_vane.json",
+    "validation/fixture3_step_import_probe.json",
+    "backend_report.yaml"
+  ]
+}

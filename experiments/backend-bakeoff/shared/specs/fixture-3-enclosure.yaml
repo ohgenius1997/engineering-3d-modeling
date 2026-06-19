@@ -1,0 +1,209 @@
+schema_version: engineering_3d_fixture.v0
+fixture_id: fixture-3-powerbank-enclosure
+title: Compact 21700 power-bank enclosure
+kind: assembly_enclosure
+units: mm
+intent: >
+  Design a compact 3D-printable power-bank enclosure that contains one 21700
+  cell and one charge/discharge module. The fixture tests component registry,
+  optional imported CAD, fallback envelopes, layout assumptions, shell generation,
+  clearance validation, access openings, and parameter iteration.
+coordinate_system:
+  origin: enclosure_center
+  axes:
+    x: enclosure_length_and_battery_axis
+    y: enclosure_width
+    z: enclosure_height
+component_inputs:
+  cad_root: ../inputs/cad
+  charge_discharge_module:
+    preferred_cad_path: ../inputs/cad/charge_discharge_module/module.step
+    alternate_cad_paths:
+      - ../inputs/cad/charge_discharge_module/module.stp
+      - ../inputs/cad/charge_discharge_module/module.f3d
+      - ../inputs/cad/charge_discharge_module/module.dxf
+    manifest_path: ../inputs/cad/charge_discharge_module/manifest.yaml
+    use_fallback_envelope_if_cad_missing: true
+    validation_diagnostic_path: ../validation/module_step_diagnostics.json
+    import_validation_policy:
+      if_topology_invalid: use_measured_bbox_envelope
+      use_imported_cad_for_visual_reference: true
+      use_top_compound_for_boolean_collision: false
+      measured_bbox_envelope_mm: [28.0461, 18.4964, 5.1914]
+      measured_bbox_source: ../validation/module_step_diagnostics.json
+      note: >
+        The supplied module STEP imports as an invalid top-level compound in the
+        current OpenCascade/CadQuery/build123d environment. Candidate Fixture 3
+        tests should use the measured bbox envelope for containment, clearance,
+        and collision checks while reporting the imported CAD validity issue.
+component_registry:
+  battery_21700:
+    role: fixed_component
+    geometry:
+      type: cylinder
+      diameter: 21
+      length: 70
+      axis: x
+    provenance: nominal_21700_cell_envelope
+    required_clearance: battery_clearance
+    keepouts:
+      terminal_service_space_positive_x:
+        type: box
+        dimensions: [5, 24, 24]
+        relative_to: battery_positive_x_end
+      terminal_service_space_negative_x:
+        type: box
+        dimensions: [3, 24, 24]
+        relative_to: battery_negative_x_end
+  charge_discharge_module:
+    role: fixed_or_imported_component
+    geometry:
+      type: imported_cad_or_box_envelope
+      measured_bbox_dimensions: [28.0461, 18.4964, 5.1914]
+      fallback_box_dimensions: [45, 20, 7]
+      fallback_orientation:
+        x: board_length
+        y: board_width
+        z: component_height
+    provenance: user_supplied_cad_preferred
+    required_clearance: pcb_clearance
+    interfaces:
+      primary_usb_c_port:
+        type: port_keepout
+        face_direction: positive_x
+        opening_dimensions: [11, 6]
+        keepout_depth: 8
+      optional_button_or_led_window:
+        type: optional_keepout
+        face_direction: positive_z
+        opening_dimensions: [8, 3]
+        keepout_depth: 2
+parameters:
+  target_max_length:
+    value: 90
+    unit: mm
+    role: soft_goal
+  target_max_width:
+    value: 36
+    unit: mm
+    role: soft_goal
+  target_max_height:
+    value: 34
+    unit: mm
+    role: soft_goal
+  wall_thickness:
+    value: 2
+    unit: mm
+    ui: numeric
+    min: 1.2
+    max: 4
+    edit_test_delta: 0.5
+  battery_clearance:
+    value: 0.8
+    unit: mm
+    ui: numeric
+    min: 0.2
+    max: 2
+  pcb_clearance:
+    value: 0.8
+    unit: mm
+    ui: numeric
+    min: 0.2
+    max: 2
+    edit_test_delta: 0.4
+  lid_gap:
+    value: 0.3
+    unit: mm
+    ui: numeric
+    min: 0.1
+    max: 1
+  corner_radius:
+    value: 4
+    unit: mm
+    ui: numeric
+    min: 1
+    max: 10
+  shell_split_offset_z:
+    value: 0
+    unit: mm
+    role: layout_parameter
+  screw_boss_outer_diameter:
+    value: 5
+    unit: mm
+    ui: numeric
+    min: 3.5
+    max: 8
+  screw_clearance_diameter:
+    value: 2.2
+    unit: mm
+    ui: numeric
+    min: 1.8
+    max: 3
+layout_requirements:
+  hard_constraints:
+    - Place battery axis along enclosure x axis.
+    - Place charge_discharge_module so its primary_usb_c_port faces positive x.
+    - Keep battery_21700 and charge_discharge_module inside generated shell.
+    - Preserve minimum battery_clearance around battery envelope.
+    - Preserve minimum pcb_clearance around module envelope or imported CAD bounding volume.
+    - Do not intersect generated shell, bosses, ribs, or lid features with fixed component envelopes.
+    - Provide a through-wall access opening for primary_usb_c_port.
+  soft_goals:
+    - Keep enclosure within target_max_length, target_max_width, and target_max_height if feasible.
+    - Prefer rounded exterior edges suitable for handheld use.
+    - Prefer simple 3D-printable shell and lid geometry.
+generated_parts:
+  lower_shell:
+    required: true
+    features:
+      - battery_cradle
+      - module_support_or_mounting_shelf
+      - exterior_shell
+      - port_opening
+  lid:
+    required: true
+    features:
+      - matching_shell_split
+      - screw_or_clip_retention
+  internal_features:
+    optional:
+      - anti_rattle_ribs
+      - cable_channel
+      - led_or_button_window
+validation:
+  hard_checks:
+    - containment_check_all_fixed_components
+    - collision_check_generated_parts_vs_fixed_components
+    - clearance_check_battery_and_module
+    - port_opening_alignment_check
+    - wall_thickness_check
+    - export_success_check
+  review_outputs:
+    preferred:
+      - assembled_preview
+      - exploded_preview
+      - section_cut_or_transparent_preview
+      - component_named_tree_or_report
+exports:
+  preferred:
+    - step
+    - stl
+    - gltf
+  required_minimum:
+    - one CAD or mesh artifact for generated enclosure
+    - one visual or report artifact showing component placement
+acceptance:
+  hard_requirements:
+    - Component registry and layout assumptions are explicit in source or generated validation report.
+    - Module CAD is used if available; fallback envelope is used and reported if CAD is missing.
+    - Parameter edits can change wall_thickness and pcb_clearance without rewriting the model from scratch.
+    - Validation report distinguishes missing-CAD fallback from geometry failure.
+  known_non_goals:
+    - Do not model electronics traces, actual charging behavior, battery contacts, or slicer settings.
+    - Do not optimize for a final consumer-product industrial design.
+iteration_case:
+  description: Increase pcb_clearance by 0.4 mm and wall_thickness by 0.5 mm.
+  expected_agent_behavior:
+    - Update declared parameters.
+    - Regenerate shell and validation artifacts.
+    - Report footprint or height changes caused by the edit.

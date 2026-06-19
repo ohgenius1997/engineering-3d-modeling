@@ -1,0 +1,23 @@
+.DS_Store
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.venv/
+venv/
+env/
+.python-packages/
+*.egg-info/
+
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated experiment CAD/export artifacts; source specs and reports remain tracked.
+experiments/**/outputs/
+experiments/**/.cache/
+
+# Local review/server scratch.
+*.log
