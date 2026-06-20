@@ -4,7 +4,7 @@
 
 Use build123d as the V1 default backend for local Python BRep generation and STEP export. Prefer readable source that mirrors the modeling sequence over clever chained code.
 
-STEP/BRep output can be opened in CAD tools such as Fusion 360 for direct editing, but it does not preserve build123d's parametric history inside those tools. The editable truth remains the model project source, specs, and parameters.
+STEP/BRep output can be opened in CAD tools such as Fusion 360 for direct editing, but it does not preserve build123d's parametric history inside those tools. The authoring truth remains the model project source, specs, parameters, and validation evidence. STEP is the CAD exchange/delivery artifact generated from that truth.
 
 ## Source Organization
 
@@ -63,9 +63,11 @@ Layout, structural topology, major exterior form, and part count changes should 
 
 ## STEP Output
 
-Export STEP as the committed CAD output. Do not export STL, 3MF, or G-code as default deliverables. Temporary preview meshes are allowed only as derived review cache assets.
+Export STEP when the project moves to `accepted_current`, `release_handoff`, or an explicit CAD handoff. `draft_review` work may defer STEP while the model is still being reviewed, but that state is not complete. Do not export STL, 3MF, or G-code as default deliverables. Temporary preview meshes are allowed only as derived review cache assets.
 
 Assemblies should export one assembly STEP by default. Per-part STEP files are optional and should be controlled by the spec or user request.
+
+Fusion 360 API scripts or other non-build123d routes are allowed only as explicit backend overrides or legacy inputs. Record them in `spec/current.yaml` under `backend.override` with a reason; do not make them the implicit default authoring truth shape.
 
 ## Source Quality
 

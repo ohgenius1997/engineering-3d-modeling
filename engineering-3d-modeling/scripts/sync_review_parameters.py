@@ -69,7 +69,9 @@ def parameter_entry(parameter_id: str, data: object, *, include_locked: bool) ->
     return None
 
 
-def sync(project: Path, *, include_locked: bool) -> dict:
+def sync(project: Path, *, include_locked: bool, audit_mode: str = "off") -> dict:
+    if audit_mode not in {"off", "basic", "strict"}:
+        raise RuntimeError("audit_mode must be one of: off, basic, strict")
     yaml = load_yaml()
     project = project.expanduser().resolve()
     parameters_path = project / "parameters.yaml"
@@ -90,22 +92,36 @@ def sync(project: Path, *, include_locked: bool) -> dict:
 
     manifest["parameters"] = entries
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return {
+    result = {
         "schema": "engineering-3d-modeling.sync_review_parameters_result.v1",
         "status": "pass",
         "written": [str(manifest_path.relative_to(project))],
         "parameter_count": len(entries),
     }
+    if audit_mode != "off":
+        import audit_review_parameters
+
+        audit_report = audit_review_parameters.audit(project, mode=audit_mode)
+        result["review_parameter_audit"] = audit_report
+        if audit_report["status"] == "fail":
+            result["status"] = "fail"
+    return result
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_path", help="Model project root")
     parser.add_argument("--include-locked", action="store_true", help="Include preview-bound parameters with ui.editable=false")
+    parser.add_argument(
+        "--audit",
+        choices=["off", "basic", "strict"],
+        default="basic",
+        help="Audit review/manifest.json parameters after syncing",
+    )
     args = parser.parse_args()
 
     try:
-        report = sync(Path(args.project_path), include_locked=args.include_locked)
+        report = sync(Path(args.project_path), include_locked=args.include_locked, audit_mode=args.audit)
     except Exception as exc:
         report = {
             "schema": "engineering-3d-modeling.sync_review_parameters_result.v1",

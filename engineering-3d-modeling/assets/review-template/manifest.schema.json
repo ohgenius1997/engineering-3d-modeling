@@ -25,7 +25,9 @@
       "type": "object",
       "properties": {
         "mesh_json": {"type": ["string", "null"]},
-        "mesh_closed": {"type": "boolean"}
+        "mesh_closed": {"type": "boolean"},
+        "adapter_js": {"type": ["string", "null"]},
+        "adapter_config": {"type": "object"}
       }
     },
     "parts": {
@@ -60,7 +62,7 @@
           "preview": {
             "type": "object",
             "properties": {
-              "effect": {"type": "string", "enum": ["scale_axis", "scale_radial", "scale_uniform", "offset_axis", "offset_radial", "twist_z", "ripple_radial", "generic_morph"]},
+              "effect": {"type": "string", "enum": ["scale_axis", "scale_radial", "scale_uniform", "offset_axis", "offset_radial", "twist_z", "ripple_radial", "generic_morph", "adapter"]},
               "axis": {"type": "string", "enum": ["x", "y", "z"]},
               "axes": {
                 "type": "array",

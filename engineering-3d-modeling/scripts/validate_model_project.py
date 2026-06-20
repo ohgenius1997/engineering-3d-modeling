@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import copy
+from datetime import datetime, timezone
+import hashlib
 import importlib.util
 import json
 import os
@@ -19,6 +21,9 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import review_validation
+import audit_review_parameters
+import audit_project_consistency
+import iteration_utils
 
 
 REQUIRED_FILES = [
@@ -44,6 +49,10 @@ REQUIRED_DIRS = [
 ]
 
 FORBIDDEN_OUTPUT_SUFFIXES = {".stl", ".3mf", ".gcode", ".bgcode"}
+PROJECT_PHASES = {"draft_review", "accepted_current", "release_handoff", "backend_override"}
+STEP_REQUIRED_PHASES = {"accepted_current", "release_handoff"}
+STEP_MANIFEST_STATES = {"draft", "accepted_current", "release_handoff"}
+STEP_PROMOTION_SCRIPT = "scripts/promote_model_project.py"
 
 
 def load_json(path: Path, errors: list[str]) -> object | None:
@@ -54,6 +63,32 @@ def load_json(path: Path, errors: list[str]) -> object | None:
     except json.JSONDecodeError as exc:
         errors.append(f"invalid JSON in {path}: {exc}")
     return None
+
+
+def file_sha256(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def safe_relative(path: Path, project: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(project.resolve()))
+    except ValueError:
+        return str(path)
+
+
+def resolve_project_path(project: Path, value: object) -> Path | None:
+    if not isinstance(value, str) or not value:
+        return None
+    path = Path(value)
+    if path.is_absolute():
+        return path.resolve()
+    return (project / path).resolve()
 
 
 def load_yaml_module():
@@ -78,6 +113,231 @@ def load_parameters_yaml(path: Path) -> dict:
     if not isinstance(data.get("parameters"), dict):
         raise RuntimeError("parameters.yaml must contain a 'parameters' mapping")
     return data
+
+
+def load_spec_yaml(path: Path, errors: list[str]) -> dict[str, Any] | None:
+    try:
+        yaml = load_yaml_module()
+    except RuntimeError as exc:
+        errors.append(str(exc))
+        return None
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except Exception as exc:
+        errors.append(f"invalid YAML in {path}: {exc}")
+        return None
+    if not isinstance(data, dict):
+        errors.append("spec/current.yaml must contain a YAML object")
+        return None
+    return data
+
+
+def phase_from_spec(spec: dict[str, Any] | None) -> tuple[str | None, str]:
+    if not isinstance(spec, dict):
+        return None, "missing"
+    lifecycle = spec.get("lifecycle")
+    if isinstance(lifecycle, dict) and isinstance(lifecycle.get("phase"), str):
+        return lifecycle["phase"], "spec.lifecycle.phase"
+    project = spec.get("project")
+    if isinstance(project, dict):
+        if isinstance(project.get("phase"), str):
+            return project["phase"], "spec.project.phase"
+        if isinstance(project.get("status"), str):
+            return project["status"], "spec.project.status"
+    status = spec.get("status")
+    if isinstance(status, dict) and isinstance(status.get("phase"), str):
+        return status["phase"], "spec.status.phase"
+    if isinstance(status, str):
+        return status, "spec.status"
+    return None, "missing"
+
+
+def resolve_project_phase(
+    project: Path,
+    *,
+    phase_override: str | None = None,
+    errors: list[str] | None = None,
+    warnings: list[str] | None = None,
+) -> dict[str, Any]:
+    local_errors = errors if errors is not None else []
+    local_warnings = warnings if warnings is not None else []
+    spec = load_spec_yaml(project / "spec" / "current.yaml", local_errors)
+    phase, source = phase_from_spec(spec)
+
+    if phase_override:
+        phase = phase_override
+        source = "override"
+
+    if phase is None:
+        phase = "draft_review"
+        source = "default:draft_review"
+        local_warnings.append(
+            "project phase is missing from spec/current.yaml; treating as draft_review, "
+            "which may defer STEP but is not an accepted or release-ready state"
+        )
+
+    if phase not in PROJECT_PHASES:
+        local_errors.append(
+            "unsupported project phase "
+            f"{phase!r}; expected one of {', '.join(sorted(PROJECT_PHASES))}"
+        )
+
+    return {"value": phase, "source": source, "spec": spec}
+
+
+def step_requirement_for_phase(phase: str, require_step: bool | None) -> tuple[bool, str]:
+    if require_step is True:
+        return True, "--require-step"
+    if require_step is False:
+        return False, "explicit allow_missing_step"
+    if phase in STEP_REQUIRED_PHASES:
+        return True, f"phase:{phase}"
+    return False, f"phase:{phase}"
+
+
+def validate_step_manifest(
+    project: Path,
+    *,
+    phase: str,
+    step_files: list[Path],
+    errors: list[str],
+    warnings: list[str],
+    checks: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    path = project / iteration_utils.STEP_MANIFEST_REL
+    manifest = load_json(path, errors) if path.is_file() else None
+    phase_requires_promoted_step = phase in STEP_REQUIRED_PHASES
+
+    if manifest is None:
+        if step_files:
+            message = (
+                "outputs/step contains STEP/STP files but outputs/step/manifest.json is missing; "
+                "draft STEP cannot be treated as accepted or release output without promotion"
+            )
+            if phase_requires_promoted_step:
+                errors.append(message)
+            else:
+                warnings.append(message)
+        return None
+
+    if not isinstance(manifest, dict):
+        errors.append("outputs/step/manifest.json must contain a JSON object")
+        return None
+
+    if manifest.get("schema") != iteration_utils.STEP_MANIFEST_SCHEMA:
+        errors.append("outputs/step/manifest.json schema is missing or unexpected")
+
+    state = manifest.get("state")
+    if state not in STEP_MANIFEST_STATES:
+        errors.append(
+            "outputs/step/manifest.json state must be one of "
+            + ", ".join(sorted(STEP_MANIFEST_STATES))
+        )
+    else:
+        checks.append({"check": "step-manifest-state", "status": "pass", "state": str(state)})
+
+    recorded_files = manifest.get("step_files")
+    if not isinstance(recorded_files, list):
+        errors.append("outputs/step/manifest.json step_files must be a list")
+        recorded_files = []
+    actual_by_rel = {safe_relative(path, project): path for path in step_files}
+    recorded_paths = {
+        item.get("path")
+        for item in recorded_files
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
+    missing_from_manifest = sorted(set(actual_by_rel) - recorded_paths)
+    if missing_from_manifest:
+        message = (
+            "outputs/step/manifest.json does not record current STEP file(s): "
+            + ", ".join(missing_from_manifest)
+        )
+        if phase_requires_promoted_step:
+            errors.append(message)
+        else:
+            warnings.append(message)
+    for item in recorded_files:
+        if not isinstance(item, dict):
+            continue
+        rel = item.get("path")
+        if not isinstance(rel, str) or rel not in actual_by_rel:
+            continue
+        expected = file_sha256(actual_by_rel[rel])
+        if expected and item.get("sha256") and str(item["sha256"]).lower() != expected.lower():
+            message = f"outputs/step/manifest.json hash for {rel} does not match current file"
+            if phase_requires_promoted_step:
+                errors.append(message)
+            else:
+                warnings.append(message)
+
+    if phase_requires_promoted_step:
+        if state != phase:
+            errors.append(
+                f"phase {phase} requires outputs/step/manifest.json state {phase}; "
+                f"current state is {state!r}"
+            )
+        if manifest.get("promoted_by") != STEP_PROMOTION_SCRIPT:
+            errors.append(
+                "accepted_current/release_handoff STEP manifest must be written by "
+                f"{STEP_PROMOTION_SCRIPT}"
+            )
+        if manifest.get("stale") is True:
+            errors.append("accepted_current/release_handoff STEP manifest must not be stale")
+    elif state in STEP_REQUIRED_PHASES:
+        errors.append(
+            f"draft_review project still carries {state} STEP manifest semantics; "
+            "start a new iteration with scripts/begin_model_iteration.py to mark STEP as draft/stale"
+        )
+
+    return manifest
+
+
+def review_audit_mode_for_phase(mode: str, phase: str) -> str:
+    if mode != "auto":
+        return mode
+    if phase == "release_handoff":
+        return "strict"
+    return "basic"
+
+
+def validate_backend_override_record(
+    spec: dict[str, Any] | None,
+    phase: str,
+    errors: list[str],
+    warnings: list[str],
+    checks: list[dict[str, str]],
+) -> None:
+    if not isinstance(spec, dict):
+        return
+    backend = spec.get("backend") if isinstance(spec.get("backend"), dict) else {}
+    override = backend.get("override") if isinstance(backend, dict) else None
+    has_override = isinstance(override, dict) and bool(override)
+
+    if phase == "backend_override":
+        if not has_override:
+            errors.append(
+                "phase backend_override requires spec/current.yaml backend.override "
+                "with at least backend/name and reason fields"
+            )
+            return
+        backend_name = override.get("backend") or override.get("name")
+        reason = override.get("reason")
+        if not isinstance(backend_name, str) or not backend_name.strip():
+            errors.append("backend.override must record the override backend/name")
+        if not isinstance(reason, str) or not reason.strip():
+            errors.append("backend.override must record the reason for the override")
+        if backend_name and reason:
+            checks.append({"check": "phase:backend_override-record", "status": "pass"})
+        warnings.append(
+            "phase backend_override is an explicit temporary backend state; "
+            "do not treat it as accepted_current or release_handoff until STEP validation passes"
+        )
+    elif has_override:
+        warnings.append(
+            f"backend.override is recorded while phase is {phase}; confirm the override is still intentional"
+        )
 
 
 def numeric_value(value: object) -> float | None:
@@ -287,19 +547,51 @@ def face_part_id(face: object) -> str:
     return ""
 
 
-def mesh_path_from_manifest(project: Path, manifest: dict, errors: list[str]) -> Path | None:
+def review_asset_path_from_manifest(project: Path, manifest: dict, key: str, errors: list[str]) -> Path | None:
     preview = manifest.get("preview")
     if not isinstance(preview, dict):
         return None
-    mesh_json = preview.get("mesh_json")
-    if not isinstance(mesh_json, str) or not mesh_json:
+    value = preview.get(key)
+    if not isinstance(value, str) or not value:
         return None
-    path = (project / "review" / mesh_json).resolve()
+    path = (project / "review" / value).resolve()
     review_dir = (project / "review").resolve()
     if path != review_dir and review_dir not in path.parents:
-        errors.append(f"preview mesh_json must stay under review/: {mesh_json}")
+        errors.append(f"preview {key} must stay under review/: {value}")
         return None
     return path
+
+
+def mesh_path_from_manifest(project: Path, manifest: dict, errors: list[str]) -> Path | None:
+    return review_asset_path_from_manifest(project, manifest, "mesh_json", errors)
+
+
+def validate_preview_adapter(project: Path, manifest: dict, errors: list[str], checks: list[dict[str, str]]) -> None:
+    parameters = manifest.get("parameters")
+    adapter_parameter_ids = []
+    if isinstance(parameters, list):
+        for parameter in parameters:
+            if not isinstance(parameter, dict):
+                continue
+            preview = parameter.get("preview")
+            if isinstance(preview, dict) and preview.get("effect") == "adapter":
+                adapter_parameter_ids.append(parameter.get("id"))
+    path = review_asset_path_from_manifest(project, manifest, "adapter_js", errors)
+    if adapter_parameter_ids and path is None:
+        errors.append(
+            "preview adapter parameters require preview.adapter_js: "
+            + ", ".join(str(parameter_id) for parameter_id in adapter_parameter_ids)
+        )
+        return
+    if path is None:
+        return
+    if path.suffix.lower() != ".js":
+        errors.append("preview adapter_js must point to a JavaScript file")
+        return
+    if not path.is_file():
+        errors.append(f"preview adapter_js does not exist: {path.relative_to(project)}")
+        return
+    checks.append({"check": "preview-adapter", "status": "pass"})
 
 
 def vertex_key(vertex: object) -> tuple[float, float, float]:
@@ -378,11 +670,154 @@ def validate_preview_mesh(project: Path, manifest: dict, errors: list[str], warn
         checks.append({"check": "preview-mesh", "status": "pass"})
 
 
-def validate(project: Path, require_step: bool, geometry_smoke: bool = False) -> dict:
+def append_review_parameter_audit(
+    project: Path,
+    mode: str,
+    errors: list[str],
+    warnings: list[str],
+    checks: list[dict[str, str]],
+) -> dict | None:
+    if mode == "off":
+        return None
+    try:
+        report = audit_review_parameters.audit(project, mode=mode)
+    except Exception as exc:
+        errors.append(f"review parameter audit failed: {exc}")
+        return None
+
+    checks.append({"check": f"review-parameter-audit:{mode}", "status": report["status"]})
+    for item in report.get("disabled_parameters", []):
+        if not isinstance(item, dict):
+            continue
+        errors.append(
+            "review parameter audit disabled "
+            f"{item.get('id')}: {item.get('reason')}; suggested action: {item.get('suggested_action')}"
+        )
+    candidates = [
+        item.get("id")
+        for item in report.get("new_candidates", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+    if candidates:
+        warnings.append("review parameter audit found backend-only candidate parameters: " + ", ".join(candidates))
+    for warning in report.get("warnings", []):
+        warnings.append(f"review parameter audit: {warning}")
+    return report
+
+
+def source_path_from_spec(project: Path, spec: dict[str, Any] | None) -> Path | None:
+    if isinstance(spec, dict):
+        source = spec.get("source")
+        if isinstance(source, dict):
+            path = resolve_project_path(project, source.get("entrypoint"))
+            if path is not None:
+                return path
+    path = project / "source" / "model.py"
+    return path.resolve()
+
+
+def mesh_path_for_snapshot(project: Path, manifest: object, errors: list[str]) -> Path | None:
+    if not isinstance(manifest, dict):
+        return None
+    return mesh_path_from_manifest(project, manifest, errors)
+
+
+def snapshot_file(project: Path, label: str, path: Path | None) -> dict[str, str] | None:
+    if path is None:
+        return None
+    entry = {"path": safe_relative(path, project)}
+    digest = file_sha256(path)
+    if digest is not None:
+        entry["sha256"] = digest
+    return entry
+
+
+def build_snapshot(
+    project: Path,
+    *,
+    phase: str,
+    phase_source: str,
+    spec: dict[str, Any] | None,
+    manifest: object,
+    step_files: list[Path],
+) -> dict[str, Any]:
+    snapshot_errors: list[str] = []
+    source_path = source_path_from_spec(project, spec)
+    mesh_path = mesh_path_for_snapshot(project, manifest, snapshot_errors)
+    files = {
+        "spec": snapshot_file(project, "spec", project / "spec" / "current.yaml"),
+        "parameters": snapshot_file(project, "parameters", project / "parameters.yaml"),
+        "source": snapshot_file(project, "source", source_path),
+        "manifest": snapshot_file(project, "manifest", project / "review" / "manifest.json"),
+        "step_manifest": snapshot_file(project, "step_manifest", project / iteration_utils.STEP_MANIFEST_REL),
+        "mesh": snapshot_file(project, "mesh", mesh_path),
+    }
+    files = {key: value for key, value in files.items() if value is not None}
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "phase": {"value": phase, "source": phase_source},
+        "files": files,
+        "step_files": [
+            {
+                "path": safe_relative(path, project),
+                "sha256": file_sha256(path),
+            }
+            for path in step_files
+        ],
+        "warnings": snapshot_errors,
+    }
+
+
+def consistency_mode_for_phase(mode: str, phase: str) -> str:
+    if mode != "auto":
+        return mode
+    if phase == "release_handoff":
+        return "strict"
+    return "off"
+
+
+def append_consistency_audit(
+    project: Path,
+    mode: str,
+    errors: list[str],
+    warnings: list[str],
+    checks: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    if mode == "off":
+        return None
+    try:
+        report = audit_project_consistency.audit(project, mode=mode)
+    except Exception as exc:
+        errors.append(f"project consistency audit failed: {exc}")
+        return None
+    checks.append({"check": f"project-consistency-audit:{mode}", "status": report["status"]})
+    for item in report.get("errors", []):
+        if isinstance(item, dict):
+            errors.append(f"project consistency audit {item.get('code')}: {item.get('message')}")
+    for item in report.get("warnings", []):
+        if isinstance(item, dict):
+            warnings.append(f"project consistency audit {item.get('code')}: {item.get('message')}")
+    return report
+
+
+def validate(
+    project: Path,
+    require_step: bool | None = None,
+    geometry_smoke: bool = False,
+    review_parameter_audit: str = "auto",
+    phase_override: str | None = None,
+    consistency_audit: str = "auto",
+) -> dict:
     project = project.expanduser().resolve()
     errors: list[str] = []
     warnings: list[str] = []
     checks: list[dict[str, str]] = []
+    phase_info = resolve_project_phase(project, phase_override=phase_override, errors=errors, warnings=warnings)
+    phase = str(phase_info["value"])
+    spec = phase_info.get("spec") if isinstance(phase_info.get("spec"), dict) else None
+    step_required, step_requirement_reason = step_requirement_for_phase(phase, require_step)
+    audit_mode = review_audit_mode_for_phase(review_parameter_audit, phase)
+    consistency_mode = consistency_mode_for_phase(consistency_audit, phase)
 
     for rel in REQUIRED_DIRS:
         path = project / rel
@@ -397,6 +832,8 @@ def validate(project: Path, require_step: bool, geometry_smoke: bool = False) ->
             checks.append({"check": f"file:{rel}", "status": "pass"})
         else:
             errors.append(f"missing required file: {rel}")
+
+    validate_backend_override_record(spec, phase, errors, warnings, checks)
 
     manifest = load_json(project / "review" / "manifest.json", errors)
     annotations = load_json(project / "review" / "annotations.json", errors)
@@ -414,6 +851,7 @@ def validate(project: Path, require_step: bool, geometry_smoke: bool = False) ->
             errors.append("review/manifest.json parameters must be a list")
         if not isinstance(manifest.get("refs", []), list):
             errors.append("review/manifest.json refs must be a list")
+        validate_preview_adapter(project, manifest, errors, checks)
         validate_preview_mesh(project, manifest, errors, warnings, checks)
 
     if isinstance(annotations, dict):
@@ -469,10 +907,24 @@ def validate(project: Path, require_step: bool, geometry_smoke: bool = False) ->
     step_files = sorted((project / "outputs" / "step").glob("*.step")) + sorted((project / "outputs" / "step").glob("*.stp"))
     if step_files:
         checks.append({"check": "step-output", "status": "pass"})
-    elif require_step:
-        errors.append("no STEP/STP files found in outputs/step")
+    elif step_required:
+        errors.append(
+            f"phase {phase} requires STEP/STP output in outputs/step "
+            f"({step_requirement_reason}); none found"
+        )
     else:
-        warnings.append("no STEP/STP files found in outputs/step")
+        warnings.append(
+            f"phase {phase} allows missing STEP/STP during draft/review work "
+            f"({step_requirement_reason}); do not call this state accepted, complete, or release-ready"
+        )
+    step_manifest = validate_step_manifest(
+        project,
+        phase=phase,
+        step_files=step_files,
+        errors=errors,
+        warnings=warnings,
+        checks=checks,
+    )
 
     forbidden = []
     outputs = project / "outputs"
@@ -489,15 +941,48 @@ def validate(project: Path, require_step: bool, geometry_smoke: bool = False) ->
         except Exception as exc:
             errors.append(f"geometry smoke failed: {exc}")
 
+    audit_report = append_review_parameter_audit(
+        project,
+        audit_mode,
+        errors,
+        warnings,
+        checks,
+    )
+
+    consistency_report = append_consistency_audit(
+        project,
+        consistency_mode,
+        errors,
+        warnings,
+        checks,
+    )
+
     status = "pass" if not errors else "fail"
+    snapshot = build_snapshot(
+        project,
+        phase=phase,
+        phase_source=str(phase_info["source"]),
+        spec=spec,
+        manifest=manifest,
+        step_files=step_files,
+    )
     return {
         "schema": "engineering-3d-modeling.project_validation.v1",
         "project": str(project),
+        "generated_at": snapshot["generated_at"],
+        "phase": {"value": phase, "source": phase_info["source"]},
+        "step_requirement": {"required": step_required, "reason": step_requirement_reason},
         "status": status,
         "checks": checks,
         "warnings": warnings,
         "errors": errors,
         "step_files": [str(path.relative_to(project)) for path in step_files],
+        "snapshot": snapshot,
+        "step_manifest": step_manifest,
+        "review_parameter_audit_mode": audit_mode,
+        "review_parameter_audit": audit_report,
+        "consistency_audit_mode": consistency_mode,
+        "consistency_audit": consistency_report,
     }
 
 
@@ -506,13 +991,36 @@ def main() -> int:
     parser.add_argument("project_path", help="Model project root")
     parser.add_argument("--require-step", action="store_true", help="Fail if outputs/step has no STEP/STP")
     parser.add_argument(
+        "--phase",
+        choices=sorted(PROJECT_PHASES),
+        help="Override spec/current.yaml lifecycle.phase for this validation run",
+    )
+    parser.add_argument(
         "--geometry-smoke",
         action="store_true",
         help="Build the model with perturbed validation.affects_geometry parameters and fail if geometry is unchanged",
     )
+    parser.add_argument(
+        "--review-parameter-audit",
+        choices=["auto", "off", "basic", "strict"],
+        default="auto",
+        help="Audit review manifest parameters; auto uses strict for release_handoff and basic otherwise",
+    )
+    parser.add_argument(
+        "--strict-consistency",
+        action="store_true",
+        help="Run handoff/current consistency audit against spec, manifest, brief, validation report, STEP, parameters, and review cache",
+    )
     args = parser.parse_args()
 
-    report = validate(Path(args.project_path), args.require_step, geometry_smoke=args.geometry_smoke)
+    report = validate(
+        Path(args.project_path),
+        True if args.require_step else None,
+        geometry_smoke=args.geometry_smoke,
+        review_parameter_audit=args.review_parameter_audit,
+        phase_override=args.phase,
+        consistency_audit="strict" if args.strict_consistency else "auto",
+    )
     print(json.dumps(report, indent=2))
     return 0 if report["status"] == "pass" else 1
 

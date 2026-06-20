@@ -4,9 +4,9 @@
 This orchestrates the safe review loop:
 
 1. apply review/parameter_patch.json into parameters.yaml,
-2. execute source/model.py to rebuild STEP output,
+2. execute source/model.py to rebuild backend CAD or review preview outputs,
 3. sync preview-bound parameters into review/manifest.json,
-4. validate structure, STEP output, and optional parameter-to-geometry smoke,
+4. validate structure, STEP output according to project phase, and optional parameter-to-geometry smoke,
 5. clear consumed review state only after the regenerated project validates.
 """
 
@@ -25,6 +25,10 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import apply_parameter_patch
+import audit_project_consistency
+import audit_review_parameters
+import begin_model_iteration
+import iteration_utils
 import reset_review_state
 import sync_review_parameters
 import validate_model_project
@@ -92,22 +96,109 @@ def regenerate(
     python_executable: str,
     skip_environment_check: bool,
     skip_sync_review_parameters: bool,
+    skip_review_parameter_audit: bool,
+    review_parameter_audit_mode: str,
     skip_validation: bool,
     skip_geometry_smoke: bool,
     keep_patch: bool,
     allow_pending_annotations: bool,
     clear_annotations: bool,
+    start_new_iteration: bool = False,
+    force_iteration: bool = False,
+    iteration_reason: str | None = None,
+    phase_override: str | None = None,
 ) -> dict[str, Any]:
     project = project.expanduser().resolve()
+    if phase_override in {"accepted_current", "release_handoff"}:
+        return {
+            "schema": "engineering-3d-modeling.regenerate_from_review_result.v1",
+            "project": str(project),
+            "phase": {"value": phase_override, "source": "override"},
+            "step_requirement": {"required": True, "reason": f"phase:{phase_override}"},
+            "status": "fail",
+            "steps": [
+                {
+                    "step": "preflight-phase-override",
+                    "status": "fail",
+                    "message": "regenerate_from_review.py cannot declare accepted_current or release_handoff; run promote_model_project.py after draft regeneration validates",
+                }
+            ],
+            "written": [],
+        }
+
+    phase_info = validate_model_project.resolve_project_phase(project, phase_override=phase_override)
+    phase = str(phase_info["value"])
+    step_required, step_requirement_reason = validate_model_project.step_requirement_for_phase(phase, None)
+    audit_mode = validate_model_project.review_audit_mode_for_phase(review_parameter_audit_mode, phase)
     report: dict[str, Any] = {
         "schema": "engineering-3d-modeling.regenerate_from_review_result.v1",
         "project": str(project),
+        "phase": {"value": phase, "source": phase_info["source"]},
+        "step_requirement": {"required": step_required, "reason": step_requirement_reason},
         "status": "fail",
         "steps": [],
         "written": [],
     }
 
     annotation_count = pending_annotation_count(project)
+    patch_count = iteration_utils.pending_patch_count(project)
+    active_iteration = iteration_utils.active_iteration(project)
+    must_begin_iteration = bool(patch_count or annotation_count or phase in {"accepted_current", "release_handoff"})
+    if must_begin_iteration and active_iteration is None:
+        if not start_new_iteration:
+            return fail(
+                report,
+                "preflight-iteration",
+                (
+                    "review changes or an accepted/release phase require a new iteration boundary before regeneration. "
+                    "Run scripts/begin_model_iteration.py first, or rerun regenerate_from_review.py with --start-new-iteration."
+                ),
+                parameter_patch_count=patch_count,
+                annotation_count=annotation_count,
+                phase=phase,
+            )
+        begin_result = begin_model_iteration.begin_iteration(
+            project,
+            force=force_iteration,
+            reason=iteration_reason or "regenerate_from_review.py consuming saved review data",
+            started_by="scripts/regenerate_from_review.py --start-new-iteration",
+        )
+        report["steps"].append(
+            {
+                "step": "begin-iteration",
+                "status": begin_result["status"],
+                "result": begin_result,
+            }
+        )
+        report["written"].extend(begin_result.get("written", []))
+        if begin_result["status"] != "pass":
+            report["status"] = "fail"
+            return report
+        phase_info = validate_model_project.resolve_project_phase(project, phase_override=phase_override)
+        phase = str(phase_info["value"])
+        step_required, step_requirement_reason = validate_model_project.step_requirement_for_phase(phase, None)
+        audit_mode = validate_model_project.review_audit_mode_for_phase(review_parameter_audit_mode, phase)
+        report["phase"] = {"value": phase, "source": phase_info["source"]}
+        report["step_requirement"] = {"required": step_required, "reason": step_requirement_reason}
+        active_iteration = iteration_utils.active_iteration(project)
+    elif phase in {"accepted_current", "release_handoff"}:
+        return fail(
+            report,
+            "preflight-iteration-phase",
+            "active iteration metadata is present but spec/current.yaml is still accepted_current or release_handoff; run begin_model_iteration.py to return the project to draft_review before regeneration",
+            phase=phase,
+        )
+    else:
+        report["steps"].append(
+            {
+                "step": "preflight-iteration",
+                "status": "pass",
+                "parameter_patch_count": patch_count,
+                "annotation_count": annotation_count,
+                "active_iteration": active_iteration is not None,
+            }
+        )
+
     if annotation_count and not (allow_pending_annotations or clear_annotations):
         return fail(
             report,
@@ -157,6 +248,21 @@ def regenerate(
     if step["status"] != "pass":
         report["status"] = "fail"
         return report
+    if iteration_utils.step_files(project):
+        step_manifest = iteration_utils.mark_draft_step(
+            project,
+            generated_by="scripts/regenerate_from_review.py",
+            stale=False,
+            reason="draft STEP generated during review regeneration",
+        )
+        report["written"].append(iteration_utils.STEP_MANIFEST_REL)
+        report["steps"].append(
+            {
+                "step": "mark-step-draft",
+                "status": "pass",
+                "step_file_count": len(step_manifest.get("step_files", [])),
+            }
+        )
 
     if not skip_sync_review_parameters:
         sync_result = sync_review_parameters.sync(project, include_locked=False)
@@ -173,11 +279,31 @@ def regenerate(
             report["status"] = "fail"
             return report
 
+    if not skip_review_parameter_audit:
+        audit_report = audit_review_parameters.audit(project, mode=audit_mode)
+        report["steps"].append(
+            {
+                "step": "review-parameter-audit",
+                "status": audit_report["status"],
+                "mode": audit_mode,
+                "valid_preview_parameters": audit_report.get("valid_preview_parameters", []),
+                "disabled_count": len(audit_report.get("disabled_parameters", [])),
+                "candidate_count": len(audit_report.get("new_candidates", [])),
+                "result": audit_report,
+            }
+        )
+        if audit_report["status"] == "fail":
+            report["status"] = "fail"
+            return report
+
     if not skip_validation:
         validation_report = validate_model_project.validate(
             project,
-            require_step=True,
+            require_step=None,
             geometry_smoke=not skip_geometry_smoke,
+            review_parameter_audit="auto",
+            phase_override=phase_override,
+            consistency_audit="off",
         )
         validation_path = project / "validation" / "report.json"
         validation_path.parent.mkdir(parents=True, exist_ok=True)
@@ -196,6 +322,32 @@ def regenerate(
             report["status"] = "fail"
             return report
 
+        consistency_mode = validate_model_project.consistency_mode_for_phase("auto", phase)
+        if consistency_mode != "off":
+            consistency_report = audit_project_consistency.audit(project, mode=consistency_mode)
+            validation_report["consistency_audit_mode"] = consistency_mode
+            validation_report["consistency_audit"] = consistency_report
+            if consistency_report["status"] == "fail":
+                validation_report["status"] = "fail"
+                validation_report.setdefault("errors", []).extend(
+                    f"project consistency audit {item.get('code')}: {item.get('message')}"
+                    for item in consistency_report.get("errors", [])
+                    if isinstance(item, dict)
+                )
+            validation_path.write_text(json.dumps(validation_report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            report["steps"].append(
+                {
+                    "step": "project-consistency-audit",
+                    "status": consistency_report["status"],
+                    "mode": consistency_mode,
+                    "error_count": len(consistency_report.get("errors", [])),
+                    "warning_count": len(consistency_report.get("warnings", [])),
+                }
+            )
+            if consistency_report["status"] == "fail":
+                report["status"] = "fail"
+                return report
+
     should_clear_annotations = clear_annotations or annotation_count == 0
     should_clear_patch = not keep_patch
     if should_clear_annotations or should_clear_patch:
@@ -213,6 +365,21 @@ def regenerate(
         )
         report["written"].extend(reset_result.get("written", []))
 
+    if active_iteration is not None:
+        completed = iteration_utils.complete_iteration(
+            project,
+            completed_by="scripts/regenerate_from_review.py",
+            status="completed",
+        )
+        report["written"].append(iteration_utils.ITERATION_METADATA_REL)
+        report["steps"].append(
+            {
+                "step": "complete-iteration",
+                "status": "pass",
+                "metadata": completed,
+            }
+        )
+
     report["status"] = "pass"
     return report
 
@@ -223,9 +390,36 @@ def main() -> int:
     parser.add_argument("--python", default=sys.executable, help="Python executable used for dependency check and source/model.py")
     parser.add_argument("--skip-environment-check", action="store_true", help="Do not run check_environment.py --json first")
     parser.add_argument("--skip-sync-review-parameters", action="store_true", help="Do not refresh review/manifest.json parameters")
+    parser.add_argument(
+        "--phase",
+        choices=sorted(validate_model_project.PROJECT_PHASES),
+        help="Override spec/current.yaml lifecycle.phase for this regeneration run",
+    )
+    parser.add_argument(
+        "--skip-review-parameter-audit",
+        action="store_true",
+        help="Do not audit review/manifest.json parameters after syncing",
+    )
+    parser.add_argument(
+        "--review-parameter-audit",
+        choices=["auto", "basic", "strict"],
+        default="auto",
+        help="Audit strength used after syncing review parameters; auto uses strict for release_handoff and basic otherwise",
+    )
     parser.add_argument("--skip-validation", action="store_true", help="Do not run validate_model_project.py after rebuilding")
     parser.add_argument("--skip-geometry-smoke", action="store_true", help="Do not run parameter-to-geometry smoke validation")
     parser.add_argument("--keep-patch", action="store_true", help="Keep review/parameter_patch.json after a successful regeneration")
+    parser.add_argument(
+        "--start-new-iteration",
+        action="store_true",
+        help="Automatically run begin_model_iteration.py before consuming saved review data or leaving accepted/release state",
+    )
+    parser.add_argument(
+        "--force-iteration",
+        action="store_true",
+        help="Allow --start-new-iteration to overwrite populated previous/ or active iteration metadata",
+    )
+    parser.add_argument("--iteration-reason", help="Short reason recorded in validation/iteration.json")
     parser.add_argument(
         "--allow-pending-annotations",
         action="store_true",
@@ -257,11 +451,17 @@ def main() -> int:
             python_executable=args.python,
             skip_environment_check=args.skip_environment_check,
             skip_sync_review_parameters=args.skip_sync_review_parameters,
+            skip_review_parameter_audit=args.skip_review_parameter_audit,
+            review_parameter_audit_mode=args.review_parameter_audit,
             skip_validation=args.skip_validation,
             skip_geometry_smoke=args.skip_geometry_smoke,
             keep_patch=args.keep_patch,
             allow_pending_annotations=args.allow_pending_annotations,
             clear_annotations=args.clear_annotations,
+            start_new_iteration=args.start_new_iteration,
+            force_iteration=args.force_iteration,
+            iteration_reason=args.iteration_reason,
+            phase_override=args.phase,
         )
     except Exception as exc:
         report = {

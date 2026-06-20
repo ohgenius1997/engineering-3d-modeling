@@ -13,6 +13,8 @@ V1 review data lives in:
 
 Annotations are user-authored review input. Do not store agent diagnostics, baseline analysis, implementation notes, or already-consumed comments in `review/annotations.json`; write those to `validation/`, `brief.md`, or source comments instead. Clear current annotations after converting them into the next model revision.
 
+Review artifacts and cache files are derived from authoring truth. They are useful for feedback, live preview, and annotations, but they do not replace `spec/current.yaml`, `parameters.yaml`, source/formula modules, validation evidence, or accepted/release STEP output.
+
 ## Allowed V1 Features
 
 - Preview current generated geometry using STEP-derived or source-derived preview assets.
@@ -51,7 +53,45 @@ Annotations are user-authored review input. Do not store agent diagnostics, base
 }
 ```
 
-The manifest may point to derived preview assets. These assets are not committed CAD deliverables.
+The manifest may point to derived preview assets. These assets are not committed CAD deliverables and may exist during `draft_review` before STEP is generated.
+
+For equation-driven models, `preview.adapter_js` may point to a same-project JavaScript preview adapter under `review/`, typically `review/cache/preview_adapter.js`:
+
+```json
+{
+  "preview": {
+    "mesh_json": "cache/current_mesh.json",
+    "mesh_closed": true,
+    "adapter_js": "cache/preview_adapter.js",
+    "adapter_config": {"formula": "guide_vane_v1"}
+  }
+}
+```
+
+The adapter must assign `window.Engineering3DPreviewAdapter.generateMesh(context)`. The template passes:
+
+- `context.parameters`: current review parameter values after unsaved slider patches,
+- `context.parameterRecords`: manifest parameter entries,
+- `context.manifest`: the full review manifest,
+- `context.baseMesh`: the backend-generated baseline preview mesh, when available,
+- `context.units`: project units.
+
+Use `preview.adapter_config` for fixed formula settings, sampling resolution, or non-editable constants that the preview adapter needs but should not appear as user-editable sliders.
+
+`generateMesh()` must return the standard review mesh shape `{vertices: [[x,y,z], ...], faces: [...]}`. Faces may be index arrays or objects with `indices`, `part_id`, `feature_id`, `world_point`, `normal`, and optional `color`/`edge`. For convenience during migration from older model-specific previews, the template can also normalize adapter output shaped as `{faces: [{pts: [[x,y,z], ...], part, feature_id, ...}]}`.
+
+Adapter-backed parameters use `preview.effect: "adapter"`:
+
+```json
+{
+  "id": "vane_count",
+  "value": 6,
+  "unit": "count",
+  "preview": {"effect": "adapter", "baseline": 6}
+}
+```
+
+Use an adapter only when the model-specific formula preview is kept aligned with backend source and validation. It may change vertex counts, face counts, and topology for review preview, such as blade count changes, but it is still not CAD truth. Saving still writes parameter patches, then backend regeneration and validation must update authoring truth and, for `accepted_current` or `release_handoff`, produce authoritative STEP plus refreshed preview assets.
 
 For a single-part project, `parts` should be empty or contain one real part. Use mesh face `feature_id` to identify shroud walls, hubs, vanes, holes, bosses, ribs, and other subregions. Multiple `part_id` values are for assembly components or separate generated parts, not features inside one joined solid.
 
@@ -121,7 +161,7 @@ The save endpoint must validate both review documents before writing. `annotatio
 }
 ```
 
-`target` may be `null` for a global annotation. Annotations are review data and are normally cleared after the agent consumes them into spec, parameter, or source changes for the next model revision.
+`target` may be `null` for a global annotation. Annotations are review data and are normally cleared after the agent consumes them into spec, parameter, or source changes for the next model revision. `scripts/promote_model_project.py` treats any current annotation record as unconsumed review input and blocks `accepted_current` or `release_handoff` promotion until the record is consumed and cleared.
 
 ## Parameter Patches
 
@@ -142,19 +182,27 @@ The save endpoint must validate both review documents before writing. `annotatio
 }
 ```
 
-A parameter patch is not final model truth until the backend regenerates and validation passes.
+A parameter patch is not final model truth until an iteration has begun, the backend regenerates, and validation passes. A non-empty `review/parameter_patch.json` blocks lifecycle promotion; run `scripts/regenerate_from_review.py --start-new-iteration` or begin the iteration manually, apply, regenerate, validate, and clear the patch before promoting.
 
 Patches are intentionally narrow. They are for HTML review parameters only, not a generic way to change hidden model parameters. A patch that references an unknown parameter, a parameter omitted from `review/manifest.json`, a locked parameter, a wrong value type, a unit mismatch, an out-of-bounds value, or a value off the declared slider step should be rejected before it changes `parameters.yaml`.
 
 Before regenerating from a reviewed project, prefer the total review loop command:
 
 ```bash
-python3 engineering-3d-modeling/scripts/regenerate_from_review.py /path/to/model-project
+python3 engineering-3d-modeling/scripts/regenerate_from_review.py /path/to/model-project --start-new-iteration
 ```
 
-It applies saved parameter patches, runs `source/model.py`, syncs preview-bound parameters into the manifest, writes `validation/report.json`, and clears consumed review state after validation succeeds.
+It starts a new iteration when needed, applies saved parameter patches, runs `source/model.py`, syncs preview-bound parameters into the manifest, writes `validation/report.json`, and clears consumed review state after validation succeeds. If the project was `accepted_current` or `release_handoff`, the iteration starts by snapshotting current state into `previous/` and returning `spec/current.yaml` to `draft_review`. Regenerated STEP is marked as draft in `outputs/step/manifest.json`; accepted/release STEP state must come later from `scripts/promote_model_project.py`.
 
-For manual debugging, apply saved patches before backend regeneration:
+Without `--start-new-iteration`, the command fails when `review/parameter_patch.json` or `review/annotations.json` is non-empty and no active `validation/iteration.json` exists. It also fails instead of regenerating directly from `accepted_current` or `release_handoff`.
+
+For manual debugging, begin the iteration before applying saved patches or editing spec/source:
+
+```bash
+python3 engineering-3d-modeling/scripts/begin_model_iteration.py /path/to/model-project --reason "consume saved review patch"
+```
+
+Then apply saved patches before backend regeneration:
 
 ```bash
 python3 engineering-3d-modeling/scripts/apply_parameter_patch.py /path/to/model-project --keep-patch
@@ -180,7 +228,23 @@ Explicit example:
 }
 ```
 
-Supported V1 preview effects are `scale_axis`, `scale_radial`, `scale_uniform`, `offset_axis`, `offset_radial`, `twist_z`, `ripple_radial`, and `generic_morph`. These are review approximations; backend regeneration remains authoritative. Use `generic_morph` only when the preview mesh generator intentionally supplies a model-specific approximation. Do not use `preview.effect: none` to keep a parameter visible; `none` means the parameter is not review-panel eligible.
+Supported V1 preview effects are `scale_axis`, `scale_radial`, `scale_uniform`, `offset_axis`, `offset_radial`, `twist_z`, `ripple_radial`, `generic_morph`, and `adapter`. Morph effects are review approximations over an existing mesh; `adapter` delegates preview mesh generation to the model-specific adapter declared by `preview.adapter_js`. Backend regeneration remains authoritative. Use `generic_morph` only when the preview mesh generator intentionally supplies a model-specific approximation. Do not use `preview.effect: none` to keep a parameter visible; `none` means the parameter is not review-panel eligible.
+
+## Review Parameter Audit
+
+After changing model geometry, formulas, preview adapters, or parameter metadata, audit the parameter panel before treating `review/manifest.json` as current:
+
+```bash
+python3 engineering-3d-modeling/scripts/audit_review_parameters.py /path/to/model-project --mode strict
+```
+
+The audit reads `parameters.yaml`, `review/manifest.json`, `source/model.py`, `review/cache/current_mesh.json` when declared, and `review/cache/preview_adapter.js` when declared through `manifest.preview.adapter_js`.
+
+Basic audit checks that every manifest preview parameter still exists in `parameters.yaml`, is explicitly `ui.editable: true`, does not use placeholder preview metadata such as `factor: 0`, and has `manifest.preview.adapter_js` when `preview.effect` is `adapter`.
+
+Strict audit perturbs exposed numeric parameters. Parameters declaring `validation.affects_geometry: true` must change the backend geometry signature produced by `source/model.py`. Adapter-only preview parameters must change the adapter-generated preview mesh signature. Non-adapter preview parameters are checked against the declared preview mesh when possible. Failed manifest parameters are reported under `disabled_parameters` with a reason and suggested action. Geometry-affecting parameters that are not safely preview-bound are reported under `new_candidates`.
+
+`scripts/validate_model_project.py` runs phase-aware review-parameter audit by default and supports `--review-parameter-audit strict`. `scripts/regenerate_from_review.py` syncs review parameters and runs phase-aware audit before validation and before clearing consumed review state; use `--review-parameter-audit strict` when a draft or accepted iteration also needs strict proof.
 
 After changing `parameters.yaml`, refresh review sliders:
 

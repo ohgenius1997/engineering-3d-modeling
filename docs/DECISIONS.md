@@ -34,6 +34,12 @@
 - 2026-06-18 - Limit V1 review HTML and model-project revisions
 - 2026-06-19 - Make HTML parameter controls explicit preview-bound
 - 2026-06-19 - Validate review persistence before writing or applying patches
+- 2026-06-19 - Add optional formula-driven review preview adapters
+- 2026-06-19 - Audit review-exposed parameters after model changes
+- 2026-06-19 - Make STEP validation phase-aware
+- 2026-06-19 - Audit handoff/current consistency across artifacts
+- 2026-06-19 - Make lifecycle promotion script-owned
+- 2026-06-20 - Make iteration rollback and STEP state explicit
 
 ## Decision Log
 
@@ -78,7 +84,7 @@
 - Decision: Scope V1 around creating and maintaining an editable parametric model truth whose eventual use is 3D printing.
 - Rationale: The skill should own model intent, parameters, geometry generation, preview/export artifacts, and geometry-level validation. Slicing, print material selection, G-code, and printer operations belong to downstream slicer/printer workflows unless explicitly requested.
 - Alternatives considered: make V1 a full additive-manufacturing workflow including slicer projects, printer profiles, material/process management, and test-print tracking; rejected because it expands beyond the skill's core modeling responsibility.
-- Consequences: Default model-project artifacts should preserve `spec/current.yaml`, `parameters.yaml`, backend source, previews, CAD/mesh exports, validation evidence, review annotations, and change summaries. STL remains an export artifact, not editable truth.
+- Consequences: Default model-project artifacts should preserve `spec/current.yaml`, `parameters.yaml`, backend source, previews, phase-appropriate CAD exports, validation evidence, review annotations, and change summaries. STL remains an export artifact, not editable truth.
 
 ### 2026-06-17 - Support engineering math as first-class authoring inputs
 - Decision: The model-project architecture must support analytical definitions such as polynomial curves, parametric profiles, and named engineering standards like NACA airfoils.
@@ -115,7 +121,7 @@
 - Decision: When using build123d with Fusion, treat STEP/BREP export as a non-mesh solid-geometry handoff. Do not claim that Fusion receives the original build123d parameter tree, feature timeline, or generator logic.
 - Rationale: build123d is a Python BREP modeling system and can export STEP/BREP solids, while Fusion can import STEP and work with BRep bodies. The interoperable artifact is precise boundary geometry, not the source parametric program.
 - Alternatives considered: treat Fusion as the primary editable source after import; rejected because edits in Fusion would not automatically update `spec/current.yaml`, `parameters.yaml`, or build123d source.
-- Consequences: Fusion is suitable as a downstream direct editor/viewer/checker for solid bodies. The durable editable truth remains the model project spec, parameters, and build123d source unless an explicit Fusion-native workflow is added.
+- Consequences: Fusion is suitable as a downstream direct editor/viewer/checker for solid bodies. The authoring truth remains the model project spec, parameters, and build123d source unless an explicit Fusion-native workflow or backend override is added.
 
 ### 2026-06-17 - Keep backend selection open until a bake-off
 - Status: Superseded by `2026-06-18 - Use build123d as the V1 default local CAD backend`.
@@ -125,13 +131,15 @@
 - Consequences: The skill should define a backend contract and run a small bake-off before finalizing templates around one default backend. The bake-off should compare model source readability, parameter iteration, formula support, assembly layout, validation, STEP/mesh/export handoff, installation/auth friction, and long-term maintainability.
 
 ### 2026-06-18 - Use build123d as the V1 default local CAD backend
-- Decision: Use build123d as the V1 default backend for generated engineering CAD source, with STEP as the committed CAD output. Non-STEP artifacts are not default V1 deliverables.
+- Status: Refined by `2026-06-19 - Make STEP validation phase-aware`.
+- Decision: Use build123d as the V1 default backend for generated engineering CAD source, with STEP as the CAD exchange output for accepted or handoff states. Non-STEP artifacts are not default V1 deliverables.
 - Rationale: Fixture 1-5 showed both build123d and CadQuery are viable, with CadQuery leading 78 to 76 on the current scorecard. The final choice favors build123d because external text-to-cad/CAD Skills experience adds evidence for sustained agent workflows: editable Python source per STEP, source-level labels and assembly positioning, selector-based review, mandatory snapshots, and geometry inspection loops.
 - Alternatives considered: choose CadQuery because it led the executable bake-off by two points; rejected because that gap came from current generation ergonomics, not observed geometry capability, and did not cover long-running selector/review workflows. Keep backend selection open; rejected because V1 templates need a default. Choose Zoo/KCL first; rejected for V1 because cloud/auth/reproducibility and local editable-truth questions remain unresolved.
 - Consequences: Skill templates should be build123d-first while keeping a backend contract for optional adapters. Specs and parameters remain the model-project authoring truth, but precise construction logic lives in build123d source. Future work should borrow text-to-cad ideas selectively: CAD brief, explicit generation targets, STEP topology/selector refs, source labels, geometry inspection, snapshot review, parameter contracts, and source-level assembly joints/placements.
 
 ### 2026-06-18 - Scope V1 to lightweight STEP engineering CAD model projects
-- Decision: V1 should create or modify engineering CAD models from natural language, dimensioned CAD drawings, existing model/source files, and qualitative photo references. The committed CAD output is STEP. Assembly STEP is default for assemblies, and separate per-part STEP export is optional. Mesh files are reference-only inputs for now.
+- Status: Refined by `2026-06-19 - Make STEP validation phase-aware`.
+- Decision: V1 should create or modify engineering CAD models from natural language, dimensioned CAD drawings, existing model/source files, and qualitative photo references. The accepted/handoff CAD exchange output is STEP. Assembly STEP is default for assemblies, and separate per-part STEP export is optional. Mesh files are reference-only inputs for now.
 - Rationale: The skill should stay focused on sustainable engineering model development rather than becoming a broad text-to-CAD, 3D printing, simulation, robotics, or rendering suite. STEP plus build123d source, specs, parameters, and validation evidence keeps the model editable without taking responsibility for downstream manufacturing workflows.
 - Alternatives considered: follow text-to-cad into downstream Bambu/G-code/robotics/viewer ecosystems; rejected as too heavy for this skill. Promise parameterized reverse engineering from STL/OBJ meshes; rejected as a separate hard problem. Treat photos like CAD drawings; rejected because photos are useful for qualitative shape and structure hints but do not provide precise dimensions.
 - Consequences: The V1 template should include brief/spec, parameters, inputs, build123d source, STEP outputs, validation, and review notes. CAD drawings require dimension/shape/structure fidelity and validation against callouts. Photos can guide exterior form or structural ideas but must be labeled as non-precise reference. STL, 3MF, G-code, slicer settings, simulation, animation, and rendering are non-goals unless added later as explicit adapters.
@@ -140,7 +148,7 @@
 - Decision: Treat V1 as a workflow for developing one durable CAD model project, not as a one-shot CAD file generator. The model project should include a lightweight HTML review surface for preview, declared-parameter adjustment, and interactive geometry annotations.
 - Rationale: CAD modeling is iterative and usually has no single correct answer; even skilled modelers adjust, inspect, and refine. A review surface gives the user and agent a shared object for targeted feedback without turning the skill into a full CAD editor or renderer.
 - Alternatives considered: output only STEP with no review UI; rejected because it weakens iteration and makes targeted feedback hard. Build a full CAD web editor or general viewer platform; rejected because it would make the skill too heavy and compete with CAD tools. Accept natural language in the HTML page; rejected because modeling changes should route through the coding agent.
-- Consequences: Minimum V1 completion should include build123d source, parameters, committed STEP output, validation evidence, and a review artifact. The HTML may use derived preview/cache assets internally, but those are review artifacts, not deliverables at the same level as STEP. HTML parameter edits save parameter patches and annotations; backend regeneration and validation remain authoritative.
+- Consequences: Minimum accepted/handoff completion should include build123d source, parameters, STEP output, validation evidence, and a review artifact. Draft review states may defer STEP but are not complete. The HTML may use derived preview/cache assets internally, but those are review artifacts, not deliverables at the same level as STEP. HTML parameter edits save parameter patches and annotations; backend regeneration and validation remain authoritative.
 
 ### 2026-06-18 - Limit V1 review HTML and model-project revisions
 - Decision: V1 review HTML should support model preview, declared-parameter adjustment, assembly part show/hide, snapped selector refs, and text annotations tied to selected points, edges, faces, parts, or features. It may support current-vs-previous comparison. It should not support lasso/freehand markup, explosion view, natural-language input, or direct geometry editing in V1.
@@ -159,3 +167,39 @@
 - Rationale: The review HTML is not CAD truth. Accepting malformed patches, hidden-parameter edits, wrong value types, or out-of-bounds values lets browser state bypass backend regeneration assumptions and makes later validation misleading.
 - Alternatives considered: trust the static HTML to emit valid patches; rejected because local files and API calls can be edited manually, and dogfood already showed malformed payloads were accepted. Validate only during backend regeneration; rejected because it still lets invalid review files overwrite project state and confuse future sessions.
 - Consequences: `serve_review.py`, `apply_parameter_patch.py`, and `validate_model_project.py` share strict review validation. Non-previewable or locked parameters must be changed through the coding agent workflow, not through `review/parameter_patch.json`. Revision rolling also requires dry-run/force discipline before overwriting a populated `previous/` slot.
+
+### 2026-06-19 - Add optional formula-driven review preview adapters
+- Decision: Keep the standard review HTML as the single UI for parameters, annotations, refs, part visibility, and saving, but allow model projects to declare a same-project formula preview adapter with `manifest.preview.adapter_js`. Adapter-backed parameters use `preview.effect: "adapter"` and let the template regenerate a derived preview mesh from model formulas.
+- Rationale: Dogfood on the guide-vane shroud showed some engineering parameters, such as vane count, NACA thickness, hub profile, and inlet camber angle, cannot be represented by generic mesh morphs but can be previewed accurately enough by re-running lightweight source-derived formulas in the browser.
+- Alternatives considered: replace the standard review template with model-specific HTML; rejected because it loses the required save, annotation, ref, bilingual, and validation workflow. Force all non-morph parameters through backend-only regeneration; rejected because it removes useful real-time feedback for equation-driven models where a safe preview generator is practical.
+- Consequences: Adapter code is preview-only and must stay under `review/`. It may change preview topology, but it must not become CAD truth or bypass `review/parameter_patch.json`, backend build123d regeneration, phase-appropriate STEP export, and validation. Formula drift between backend source and JavaScript adapters is an active validation risk.
+
+### 2026-06-19 - Audit review-exposed parameters after model changes
+- Decision: Add a review-parameter audit that runs against `parameters.yaml`, `review/manifest.json`, `source/model.py`, preview mesh cache, and optional preview adapters. Basic audit guards manifest exposure rules; strict audit perturbs parameters and requires declared geometry or adapter/preview effects to change a trusted signature.
+- Rationale: Dogfood exposed a failure mode where historical parameters such as `shroud_wall` stayed in the HTML panel after the model shape changed, even though they no longer affected the current envelope or live preview. A visible slider with no trustworthy effect is worse than hiding the parameter and routing the edit through backend regeneration.
+- Alternatives considered: rely on `sync_review_parameters.py` to copy current metadata only; rejected because stale preview metadata can remain in `parameters.yaml`. Rely on humans to manually remove obsolete sliders; rejected because model-shape changes are exactly when this is easy to miss. Always auto-delete failing parameters; rejected because validation failure is safer when the agent needs to inspect why a parameter became stale.
+- Consequences: Regeneration now syncs and audits review parameters before validation and before clearing consumed review state, with strict audit for release handoff or explicit strict requests. `validate_model_project.py` runs phase-aware audit by default and can run strict audit. Backend-only geometry parameters are reported as candidates until a safe preview binding is defined.
+
+### 2026-06-19 - Make STEP validation phase-aware
+- Decision: Distinguish authoring truth, CAD exchange/delivery STEP output, and review-derived artifacts. Model projects should record `spec/current.yaml` `lifecycle.phase` as `draft_review`, `accepted_current`, `release_handoff`, or `backend_override`. Validators require STEP by default only for `accepted_current` and `release_handoff`, while `--require-step` remains a forced delivery check.
+- Rationale: Earlier wording made committed STEP sound like durable truth for every iteration, which could make agents fail reasonable draft/review states or waste context generating STEP after every small review change. It also risked calling review/cache artifacts or parameter patches model truth before backend regeneration.
+- Alternatives considered: Always require STEP on every validation; rejected because it makes review-only drafts too heavy. Never require STEP unless `--require-step` is passed; rejected because accepted and handoff states must not silently pass without CAD exchange output. Store phase only in review metadata; rejected because review files are derived artifacts, not lifecycle truth.
+- Consequences: New scaffolds start in `draft_review`. Missing STEP in draft/review is reported with an explicit phase warning and must not be described as complete. `accepted_current` and `release_handoff` fail without STEP; `release_handoff` defaults to strict review-parameter audit. Fusion 360 API or other non-default backend use must be recorded as `backend_override` with backend/name and reason, not treated as the default authoring truth shape.
+
+### 2026-06-19 - Audit handoff/current consistency across artifacts
+- Decision: Add a project consistency audit that compares authoring truth, review artifacts, STEP outputs, validation reports, and backend override metadata before accepted or release handoff claims.
+- Rationale: Dogfood on the guide-vane shroud showed a model project can have valid-looking source, review HTML, STEP, and reports while still mixing old Fusion/current-source claims, stale brief parameters, old validation fields, and missing lifecycle metadata.
+- Alternatives considered: Rely on `validate_model_project.py` structure checks and review-parameter audit alone; rejected because those checks do not prove `brief.md`, manifest current source, validation report, mesh cache, and STEP describe the same snapshot. Hard-code a guide-vane-specific checker; rejected because the failure mode applies to any model project.
+- Consequences: `scripts/audit_project_consistency.py` emits machine-readable JSON and a human summary. `validate_model_project.py` runs strict consistency for `release_handoff` and with `--strict-consistency`. `draft_review` may carry warnings for incomplete proof, but `accepted_current` and `release_handoff` should fail when current source, STEP, report, mesh, or exposed parameter state is inconsistent.
+
+### 2026-06-19 - Make lifecycle promotion script-owned
+- Decision: Lifecycle phase advancement must go through `scripts/promote_model_project.py` instead of direct YAML edits or oral completion claims.
+- Rationale: Agents need a transaction boundary that checks pending review data, ordered phase movement, STEP presence, backend override acceptance, and report snapshot evidence before changing `spec/current.yaml`.
+- Alternatives considered: Tell agents to run validators manually before editing phase; rejected because it is easy to skip a gate, write stale reports, or leave a project half-promoted after failure.
+- Consequences: `draft_review -> accepted_current -> release_handoff` is the only default order. Failed promotions restore the original phase/report, and direct draft-to-release requires explicit `--allow-skip-accepted` while still running both validation gates.
+
+### 2026-06-20 - Make iteration rollback and STEP state explicit
+- Decision: Treat `previous/` as a one-step rollback snapshot for every true modeling iteration, and treat `outputs/step/manifest.json` as the authority for whether STEP is draft, accepted current, or release handoff.
+- Rationale: Dogfood continuation showed two unsafe paths: agents could regenerate over accepted/handoff projects without first preserving rollback state, and STEP files could remain present after a new iteration while still being implicitly treated as accepted or release output.
+- Alternatives considered: Keep `previous/` as accepted-only and rely on agents to remember manual reverse edits; rejected because it loses rollback for failed draft iterations. Use STEP file presence alone; rejected because file presence cannot distinguish draft preview output from promotion-gate output.
+- Consequences: `scripts/begin_model_iteration.py` must run before consuming saved review patches/annotations or editing authoring truth/derived outputs. It snapshots current state, records `validation/iteration.json`, returns accepted/release projects to `draft_review`, and marks STEP draft/stale. `scripts/regenerate_from_review.py` fails by default unless an iteration boundary exists or `--start-new-iteration` is explicit. `scripts/promote_model_project.py` is the only bundled script that writes accepted/release STEP manifest state.

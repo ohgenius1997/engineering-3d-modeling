@@ -617,6 +617,10 @@
       annotations: {schema: "engineering-3d-modeling.annotations.v1", annotations: []},
       patch: {schema: "engineering-3d-modeling.parameter_patch.v1", patches: []},
       mesh: null,
+      baseMesh: null,
+      previewAdapter: null,
+      previewAdapterError: "",
+      previewAdapterGeneration: 0,
       activeAnnotationId: null,
       pickAnnotationId: null,
       partVisible: new Map(),
@@ -675,6 +679,7 @@
         openAnnotations: "Annotations",
         previewPatchLive: "Parameter preview is approximate until backend regeneration.",
         previewPatchNoBinding: "Saved parameter patch. This mesh has no live preview binding for some changed parameters.",
+        previewAdapterFailed: "Formula preview adapter failed; showing baseline preview.",
         current: "Current",
         resetView: "Reset view",
         invalidJson: "Invalid JSON: {message}",
@@ -726,6 +731,7 @@
         openAnnotations: "批注",
         previewPatchLive: "参数预览只是近似效果，最终仍需后端重新生成。",
         previewPatchNoBinding: "已保存参数补丁。当前 mesh 没有为部分变化参数声明实时预览绑定。",
+        previewAdapterFailed: "公式预览适配器失败；正在显示基线预览。",
         current: "当前版本",
         resetView: "重置视图",
         invalidJson: "JSON 无效：{message}",
@@ -853,14 +859,50 @@
 
     async function loadPreviewMesh() {
       state.mesh = null;
+      state.baseMesh = null;
       const path = state.manifest.preview && state.manifest.preview.mesh_json;
       if (!path) return;
       try {
         const response = await fetch(path, {cache: "no-store"});
-        if (response.ok) state.mesh = await response.json();
+        if (response.ok) {
+          state.baseMesh = normalizePreviewMesh(await response.json());
+          state.mesh = state.baseMesh;
+        }
       } catch (_) {
         state.mesh = null;
+        state.baseMesh = null;
       }
+    }
+
+    async function loadPreviewAdapter() {
+      state.previewAdapter = null;
+      state.previewAdapterError = "";
+      window.Engineering3DPreviewAdapter = null;
+      const preview = state.manifest.preview || {};
+      const path = preview.adapter_js || preview.preview_adapter || null;
+      if (!path) return;
+      try {
+        await loadScript(path);
+        const adapter = window.Engineering3DPreviewAdapter || window.engineering3DPreviewAdapter;
+        if (!adapter || typeof adapter.generateMesh !== "function") {
+          throw new Error("adapter must assign window.Engineering3DPreviewAdapter.generateMesh");
+        }
+        state.previewAdapter = adapter;
+      } catch (error) {
+        state.previewAdapter = null;
+        state.previewAdapterError = error && error.message ? error.message : String(error);
+      }
+    }
+
+    function loadScript(path) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = path;
+        script.async = false;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`failed to load ${path}`));
+        document.head.appendChild(script);
+      });
     }
 
     function initializeFromManifest() {
@@ -869,7 +911,10 @@
       for (const part of state.manifest.parts || []) {
         state.partVisible.set(part.id, part.visible !== false);
       }
-      loadPreviewMesh().then(renderAll);
+      Promise.all([loadPreviewMesh(), loadPreviewAdapter()]).then(() => {
+        refreshAdapterPreview();
+        renderAll();
+      });
     }
 
     function renderAll() {
@@ -1013,7 +1058,7 @@
       const matchesBase = value === param.value || (baseNumber !== null && Number.isFinite(value) && Math.abs(value - baseNumber) < 1e-9);
       if (matchesBase) {
         if (existingIndex >= 0) patches.splice(existingIndex, 1);
-        renderPreview();
+        refreshPreviewAfterParameterChange();
         return;
       }
       const patch = {
@@ -1025,6 +1070,11 @@
       };
       if (existingIndex >= 0) Object.assign(patches[existingIndex], patch);
       else patches.push(patch);
+      refreshPreviewAfterParameterChange();
+    }
+
+    function refreshPreviewAfterParameterChange() {
+      refreshAdapterPreview();
       renderPreview();
     }
 
@@ -1039,6 +1089,82 @@
     function currentParameterValue(param) {
       const patch = ensurePatchShape().find(p => p.parameter_id === param.id);
       return patch ? patch.value : param.value;
+    }
+
+    function currentParameterValues() {
+      const values = {};
+      for (const param of state.manifest.parameters || []) {
+        if (param && param.id) values[param.id] = currentParameterValue(param);
+      }
+      return values;
+    }
+
+    function normalizePreviewMesh(data) {
+      if (!data || typeof data !== "object") return null;
+      if (Array.isArray(data.vertices) && Array.isArray(data.faces)) return data;
+      if (Array.isArray(data.faces) && data.faces.every(face => Array.isArray(face && face.pts))) {
+        const vertices = [];
+        const faces = [];
+        const vertexKeyToIndex = new Map();
+        const vertexIndex = point => {
+          const key = point.map(value => Number(value).toPrecision(12)).join(",");
+          if (!vertexKeyToIndex.has(key)) {
+            vertexKeyToIndex.set(key, vertices.length);
+            vertices.push(point.map(Number));
+          }
+          return vertexKeyToIndex.get(key);
+        };
+        for (const face of data.faces) {
+          const indices = face.pts.map(vertexIndex);
+          const normalized = {indices};
+          for (const key of ["id", "part_id", "part", "feature_id", "world_point", "normal", "color", "edge"]) {
+            if (face[key] !== undefined) normalized[key] = face[key];
+          }
+          if (!normalized.part_id && face.part) normalized.part_id = face.part;
+          faces.push(normalized);
+        }
+        return {vertices, faces};
+      }
+      return null;
+    }
+
+    function refreshAdapterPreview() {
+      if (!state.previewAdapter) return false;
+      const generation = ++state.previewAdapterGeneration;
+      const context = {
+        parameters: currentParameterValues(),
+        parameterRecords: state.manifest.parameters || [],
+        manifest: state.manifest,
+        adapterConfig: (state.manifest.preview && state.manifest.preview.adapter_config) || {},
+        baseMesh: state.baseMesh,
+        units: state.manifest.project && state.manifest.project.units,
+      };
+      const applyMesh = data => {
+        if (generation !== state.previewAdapterGeneration) return;
+        const mesh = normalizePreviewMesh(data);
+        if (!mesh) throw new Error("adapter returned invalid mesh");
+        state.mesh = mesh;
+        state.previewAdapterError = "";
+      };
+      try {
+        const result = state.previewAdapter.generateMesh(context);
+        if (result && typeof result.then === "function") {
+          result.then(applyMesh).catch(error => {
+            if (generation === state.previewAdapterGeneration) {
+              state.previewAdapterError = error && error.message ? error.message : String(error);
+              state.mesh = state.baseMesh;
+              renderPreview();
+            }
+          });
+        } else {
+          applyMesh(result);
+        }
+        return true;
+      } catch (error) {
+        state.previewAdapterError = error && error.message ? error.message : String(error);
+        state.mesh = state.baseMesh;
+        return false;
+      }
     }
 
     function patchedParameterIds() {
@@ -1408,6 +1534,7 @@
     function applyPreviewEffects(point, bounds) {
       let out = [...point];
       for (const effect of activePreviewEffects()) {
+        if (effect.effect === "adapter") continue;
         const param = parameterById(effect.parameter_id);
         if (!param) continue;
         const baseline = numeric(effect.baseline ?? param.value);
@@ -1516,20 +1643,22 @@
       } else {
         drawRefsOnly();
         const notice = previewPatchNotice();
-        $("hud").innerHTML = t("hudNoMesh") + (notice ? ` ${escapeHtml(notice)}` : "");
+        const adapterNotice = state.previewAdapterError ? ` ${escapeHtml(t("previewAdapterFailed"))}` : "";
+        $("hud").innerHTML = t("hudNoMesh") + (notice ? ` ${escapeHtml(notice)}` : "") + adapterNotice;
       }
     }
 
     function hudText() {
       const notice = previewPatchNotice();
+      const adapterNotice = state.previewAdapterError ? ` ${t("previewAdapterFailed")}` : "";
       const suffix = notice ? ` ${notice}` : "";
       if (state.pickAnnotationId) {
-        return t("hudPickTarget", {index: annotationIndex(state.pickAnnotationId)}) + suffix;
+        return t("hudPickTarget", {index: annotationIndex(state.pickAnnotationId)}) + suffix + adapterNotice;
       }
       if (state.activeAnnotationId) {
-        return t("hudSelected", {index: annotationIndex(state.activeAnnotationId)}) + suffix;
+        return t("hudSelected", {index: annotationIndex(state.activeAnnotationId)}) + suffix + adapterNotice;
       }
-      return t("hudReady") + suffix;
+      return t("hudReady") + suffix + adapterNotice;
     }
 
     function drawGrid() {
@@ -1576,8 +1705,8 @@
         ctx.moveTo(item.pts[0].x, item.pts[0].y);
         for (const p of item.pts.slice(1)) ctx.lineTo(p.x, p.y);
         ctx.closePath();
-        ctx.fillStyle = partId ? "rgba(42, 105, 170, .28)" : "rgba(42, 105, 170, .20)";
-        ctx.strokeStyle = "rgba(37, 55, 77, .35)";
+        ctx.fillStyle = item.face.color || (partId ? "rgba(42, 105, 170, .28)" : "rgba(42, 105, 170, .20)");
+        ctx.strokeStyle = item.face.edge || "rgba(37, 55, 77, .35)";
         ctx.fill();
         ctx.stroke();
         state.renderedFaces.push(item);

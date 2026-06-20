@@ -31,7 +31,7 @@
 - Zoo offers an official MCP path, API/SDK tooling, KCL as text-based CAD source, and cloud-backed CAD/modeling workflows. It is the strongest currently identified official MCP-native CAD route, but it introduces platform, auth, cloud, pricing, and maturity questions.
 - Fusion supports importing STEP through its import API and represents solid geometry as BRep bodies. Imported build123d STEP/BREP output should be treated as editable direct-modeling solid geometry, not as native Fusion feature history.
 - Product data management separates mutable workspaces/history from immutable versions, released revisions, approval state, and release candidates.
-- V1 focuses on lightweight editable engineering CAD model projects with STEP as the committed output, not full production CAD/MBD, 3D printing, slicing, simulation, animation, or rendering workflows.
+- V1 focuses on lightweight editable engineering CAD model projects with STEP as the CAD exchange/delivery output for accepted or handoff states, not full production CAD/MBD, 3D printing, slicing, simulation, animation, or rendering workflows.
 - STL, OBJ, and other mesh files are reference-only inputs for V1. Parameterized reverse engineering from meshes is out of scope.
 - Dimensioned CAD drawings can drive precise modeling and validation. Photos can provide qualitative form or structure references, but cannot be treated as dimensionally precise unless scale and dimensions are supplied separately.
 - Engineering models may depend on analytical math definitions such as polynomial curves, spline profiles, airfoil definitions, parametric ducts, guide vanes, and other equation-driven geometry.
@@ -51,8 +51,9 @@
 - Review surface: A visual interface or artifact that helps a user identify parts, faces, edges, features, or components when requesting changes.
 - Review HTML: A lightweight project-local review surface for preview, explicit preview-bound parameter adjustment, and geometry annotation. It is not CAD truth and does not accept natural-language modeling instructions.
 - Snapped selector ref: A review reference created by selecting a concrete model entity such as a point, edge, face, part, or feature. It records the selector token plus enough context, such as owning part and world position, to support later agent interpretation.
-- Editable truth: The structured spec, parameter table, and backend source that can regenerate and revise the model.
-- STEP CAD output: The committed CAD exchange artifact generated from editable truth.
+- Authoring truth: The structured spec, parameter table, backend source or formula modules, and validation evidence that can regenerate and revise the model.
+- STEP CAD output: The CAD exchange/delivery artifact generated from authoring truth for accepted current or release/handoff states.
+- Review artifact: HTML, preview cache, annotations, and parameter patches used for feedback; these are not CAD truth until consumed into authoring truth and regenerated.
 - Geometry validation: Checks on generated BRep/STEP geometry such as solid validity, dimensions, clearances, wall thickness, containment, and assembly relationships.
 - Analytical definition: A reusable mathematical description of geometry, such as a polynomial path, parametric cross-section, or named engineering profile.
 - Formula module: Tested source code that evaluates an analytical definition for use by a backend model generator.
@@ -79,7 +80,7 @@
 - Prefer parameterized, repeatable model-generation flows that can be inspected and revised.
 - Preserve adjustable parameters and generated previews as first-class outputs.
 - Design early part templates so they can later grow into assembly templates.
-- Treat each model project as the editable truth for one chosen model or assembly, not a container for multiple product variants.
+- Treat each model project as the authoring truth for one chosen model or assembly, not a container for multiple product variants.
 - Do not describe `spec/current.yaml` or `parameters.yaml` as the full production source of truth; call them authoring truth unless release-grade CAD/PMI/validation artifacts are present.
 - Separate authoring artifacts, review artifacts, validation artifacts, and release artifacts in the model-project template.
 - Treat face/edge-level selection as unstable unless mapped through stable feature/component IDs or backend-supported persistent identifiers.
@@ -97,16 +98,16 @@
 - Expose only declared, bounded parameters with explicit live preview bindings in HTML adjustment surfaces. Suitable examples include wall thickness, fillets, clearances, lengths, hole diameters, thread specs, chamfer widths, and shell thickness when the browser preview effect is known to match the model intent.
 - Route layout, exterior-form, structural, feature-topology, and natural-language change requests back to the coding agent's modeling workflow. The user may request a new adjustable parameter there, and the agent should decide whether it is suitable to expose.
 - GPU acceleration helps render previews, but CAD regeneration remains a backend responsibility. Treat browser-side live preview as approximate unless it is backed by regenerated geometry and validation.
-- HTML review may use derived preview assets or caches, but these are review artifacts, not committed CAD outputs. STEP remains the committed model output.
+- HTML review may use derived preview assets or caches, but these are review artifacts, not committed CAD outputs. STEP remains the accepted/handoff CAD exchange output.
 - V1 HTML review should support preview, parameter controls, snapped selector annotations with text notes, assembly part show/hide, and optional current-vs-previous comparison. Lasso/freehand markup, explosion view, natural-language input, and direct geometry editing are out of V1 scope.
 - Use one-file specs for simple models. Split specs only when complexity creates independent reviewable domains; do not turn one YAML file into a full pseudo-CAD database.
 - Let `spec/current.yaml` be a root manifest with explicit local references to sub-specs for complex projects. Complex assemblies are the main V1 trigger, but heavy formula, validation, or imported-data domains may also justify local sub-specs.
 - Split complex specs by reviewable domain, not by project variant: fixed components, generated parts, shell/enclosure, airflow, mechanisms, electronics mounting, formulas, and validation are suitable internal sections.
 - Treat build123d source as the precise construction layer for V1. Specs and parameters define intent and authoring contract; source code implements the geometry that would be too detailed or fragile to encode in YAML.
-- STEP-first workflows should still keep source provenance, labels, selector refs, geometry facts, snapshots, and validation reports tied back to the model project.
+- STEP-first accepted/handoff workflows should still keep source provenance, labels, selector refs, geometry facts, snapshots, and validation reports tied back to the model project.
 - Default assembly output is one assembly STEP; exporting separate STEP files per generated part is optional and should be enabled only when it helps review, handoff, or downstream CAD use.
 - Good V1 parameters include lengths, widths, heights, offsets, wall/shell thickness, clearances, hole diameters, hole spacing, hole-to-edge distances, thread standard and depth, fillet/chamfer size, boss/standoff dimensions, rib count/thickness/spacing, pattern counts, curve/profile controls, and assembly gaps. User-specific feature dimensions can be added through annotation plus natural-language request when the agent judges them stable enough to parameterize.
-- Minimum V1 completion should preserve enough project state for iteration: brief, parameters, build123d source, STEP output, validation evidence, and a review artifact such as HTML or snapshot/review notes.
+- Minimum V1 accepted/handoff completion should preserve enough project state for iteration: brief, parameters, build123d source, STEP output, validation evidence, and a review artifact such as HTML or snapshot/review notes. Draft review states may defer STEP but must not be described as complete.
 - V1 model-project history should be a two-slot rolling scheme: `current` plus `previous`. Full multi-version history is out of scope unless handled by outer Git/project history.
 
 ## Decisions
@@ -142,7 +143,7 @@
 - YAML specs may become a parallel pseudo-CAD system if they try to encode every geometric detail instead of model intent and constraints.
 - Exporting viewable meshes can create false confidence because mesh previews do not preserve full CAD topology, tolerances, or manufacturing semantics.
 - Treating photos as precise inputs can create false confidence unless scale and dimensions are independently supplied.
-- Over-focusing on STL/mesh outputs would weaken the core goal of preserving editable parametric STEP CAD truth.
+- Over-focusing on STL/mesh outputs would weaken the core goal of preserving editable parametric CAD authoring truth and accepted/handoff STEP exchange output.
 - Incorrect or undocumented formulas can generate plausible-looking but wrong engineering geometry.
 - Layout freedom can cause the agent to make arbitrary industrial-design choices unless assumptions, options, and constraints are made inspectable before geometry generation.
 - Real-time parameter previews can create false confidence if the browser preview diverges from backend-generated CAD geometry or skips validation.
