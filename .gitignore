@@ -15,18 +15,5 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Generated experiment CAD/export artifacts; source specs and reports remain tracked.
-experiments/**/outputs/
-experiments/**/.cache/
-
-# User-supplied or third-party CAD/reference inputs for local bake-off fixtures.
-experiments/backend-bakeoff/shared/inputs/cad/**/*.step
-experiments/backend-bakeoff/shared/inputs/cad/**/*.stp
-experiments/backend-bakeoff/shared/inputs/cad/**/*.f3d
-experiments/backend-bakeoff/shared/inputs/cad/**/*.dxf
-experiments/backend-bakeoff/shared/inputs/cad/**/*.pdf
-experiments/backend-bakeoff/shared/inputs/cad/**/*.png
-experiments/backend-bakeoff/shared/inputs/cad/**/*.svg
-
 # Local review/server scratch.
 *.log
