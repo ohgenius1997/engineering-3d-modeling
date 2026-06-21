@@ -28,6 +28,7 @@ measured_envelope_from_current_step:
   diagnostic_report: ../../../../validation/module_step_diagnostics.json
   policy: use_for_fixture3_collision_when_step_topology_is_invalid
 notes:
+  - Public repository checkouts intentionally omit user-supplied CAD inputs; add local files here only when running the bake-off privately.
   - Do not place API tokens, private credentials, or unrelated files here.
   - If the CAD origin or orientation is unknown, candidate tests must record the assumed transform.
   - If the file includes only a 2D drawing, candidate tests may use it as reference and keep the fallback envelope for collision checks.

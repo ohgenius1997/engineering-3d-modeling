@@ -199,6 +199,8 @@ experiments/backend-bakeoff/
       cad/
         charge_discharge_module/
           manifest.yaml
+          # local CAD inputs such as module.step are intentionally ignored
+          # and are not part of the public repository
   build123d/
     source/
     outputs/

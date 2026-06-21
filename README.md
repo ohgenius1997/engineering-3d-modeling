@@ -303,6 +303,9 @@ Known limitations:
 - Promotion restores lifecycle state and validation reports on failure, but a
   source-driven STEP rebuild may still leave generated STEP artifacts if a later
   gate fails.
+- The backend bake-off includes fixture specs and reports, but user-supplied CAD
+  inputs such as local STEP/STP/Fusion/DXF/PDF/PNG/SVG reference files are not
+  included in the public repository.
 
 ## Repository Structure
 
@@ -318,6 +321,9 @@ docs/
   DOMAIN.md
   SKILL_SPEC.md
   WORKFLOWS.md
+experiments/
+  backend-bakeoff/
+    shared specs, reports, and optional local-input manifests
 AGENTS.md
 PROJECT_STATUS.md
 ```
@@ -342,5 +348,4 @@ the V1 default path unless the scope is explicitly revised.
 
 ## License
 
-No open-source license has been selected yet. Add a `LICENSE` file before public
-release.
+MIT. See [LICENSE](LICENSE).
