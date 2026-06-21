@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engineering-3d-modeling.parameter_patch.v1",
+  "type": "object",
+  "required": ["schema", "patches"],
+  "properties": {
+    "schema": {"const": "engineering-3d-modeling.parameter_patch.v1"},
+    "patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["parameter_id", "value", "source"],
+        "properties": {
+          "parameter_id": {"type": "string"},
+          "value": {"type": ["number", "string", "boolean"]},
+          "unit": {"type": "string"},
+          "reason": {"type": "string"},
+          "source": {"const": "review-html"}
+        }
+      }
+    }
+  }
+}
