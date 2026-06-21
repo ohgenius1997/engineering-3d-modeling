@@ -155,9 +155,9 @@ Run the helper with the same Python interpreter that will execute
 Ask Codex to use the skill for an engineering CAD task, for example:
 
 ```text
-Use the engineering-3d-modeling skill to create a compact enclosure for a
-21700 cell and a PCB. Keep it as a maintainable model project and prepare an
-HTML review surface.
+Use the engineering-3d-modeling skill to create a parameterized mounting
+bracket with a bolt pattern and clearance constraints. Keep it as a
+maintainable model project and prepare an HTML review surface.
 ```
 
 For a new project, the agent should scaffold with:
@@ -303,9 +303,8 @@ Known limitations:
 - Promotion restores lifecycle state and validation reports on failure, but a
   source-driven STEP rebuild may still leave generated STEP artifacts if a later
   gate fails.
-- The backend bake-off includes fixture specs and reports, but user-supplied CAD
-  inputs such as local STEP/STP/Fusion/DXF/PDF/PNG/SVG reference files are not
-  included in the public repository.
+- Backend bake-off notes, local fixture inputs, and research artifacts are kept
+  outside the public release branch.
 
 ## Repository Structure
 
@@ -316,16 +315,9 @@ engineering-3d-modeling/
   references/
   scripts/
   tests/
-docs/
-  DECISIONS.md
-  DOMAIN.md
-  SKILL_SPEC.md
-  WORKFLOWS.md
-experiments/
-  backend-bakeoff/
-    shared specs, reports, and optional local-input manifests
-AGENTS.md
-PROJECT_STATUS.md
+README.md
+LICENSE
+.gitignore
 ```
 
 ## Contributing
