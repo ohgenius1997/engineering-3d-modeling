@@ -40,6 +40,7 @@
 - 2026-06-19 - Audit handoff/current consistency across artifacts
 - 2026-06-19 - Make lifecycle promotion script-owned
 - 2026-06-20 - Make iteration rollback and STEP state explicit
+- 2026-06-22 - Guard review previews against misleading generic morphs
 
 ## Decision Log
 
@@ -203,3 +204,9 @@
 - Rationale: Dogfood continuation showed two unsafe paths: agents could regenerate over accepted/handoff projects without first preserving rollback state, and STEP files could remain present after a new iteration while still being implicitly treated as accepted or release output.
 - Alternatives considered: Keep `previous/` as accepted-only and rely on agents to remember manual reverse edits; rejected because it loses rollback for failed draft iterations. Use STEP file presence alone; rejected because file presence cannot distinguish draft preview output from promotion-gate output.
 - Consequences: `scripts/begin_model_iteration.py` must run before consuming saved review patches/annotations or editing authoring truth/derived outputs. It snapshots current state, records `validation/iteration.json`, returns accepted/release projects to `draft_review`, and marks STEP draft/stale. `scripts/regenerate_from_review.py` fails by default unless an iteration boundary exists or `--start-new-iteration` is explicit. `scripts/promote_model_project.py` is the only bundled script that writes accepted/release STEP manifest state.
+
+### 2026-06-22 - Guard review previews against misleading generic morphs
+- Decision: Localized engineering feature parameters must not use `preview.effect: generic_morph`; intentional generic morphs must carry scope, feature refs, or rationale metadata and are audited before exposure.
+- Rationale: Dogfood showed a slider can appear useful when a generic mesh deformation changes the preview, while the deformation does not match the real CAD operation, such as a chamfer width. A false live preview is worse than a backend-only parameter.
+- Alternatives considered: Rely on documentation that says not to infer preview behavior; rejected because agents can still explicitly write the wrong preview binding. Ban all generic morphs; rejected because whole-model or deliberately approximate review deformations can still be useful when labeled and scoped.
+- Consequences: `audit_review_parameters.py` now rejects high-risk local-feature terms such as chamfer, fillet, hole, mount, cutout, clearance, layout, PCB, battery, rib, slot, and thread when bound to `generic_morph`. Strict audit also rejects unscoped generic morphs. Local feature previews should use model-specific adapters or stay in the backend regeneration workflow.

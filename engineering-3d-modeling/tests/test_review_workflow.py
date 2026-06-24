@@ -664,6 +664,74 @@ The current model is a Fusion 360 API script.
         self.assertEqual(report["status"], "fail")
         self.assertIn("shroud_wall", "\n".join(report["errors"]))
 
+    def test_review_parameter_audit_rejects_local_feature_generic_morph(self) -> None:
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["front_chamfer_width"] = {
+            "value": 1.0,
+            "unit": "mm",
+            "role": "localized_chamfer",
+            "preview": {"effect": "generic_morph", "baseline": 1.0, "rationale": "incorrect test binding"},
+            "ui": {"editable": True, "control": "slider", "min": 0.0, "max": 3.0, "step": 0.25},
+            "validation": {"affects_geometry": True, "affects_local_feature": True},
+        }
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+
+        manifest_path = self.project / "review" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["parameters"].append(
+            {
+                "id": "front_chamfer_width",
+                "label": "Front chamfer width",
+                "value": 1.0,
+                "unit": "mm",
+                "min": 0.0,
+                "max": 3.0,
+                "step": 0.25,
+                "preview": {"effect": "generic_morph", "baseline": 1.0, "rationale": "incorrect test binding"},
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        audit = audit_review_parameters.audit(self.project, mode="basic")
+        self.assertEqual(audit["status"], "fail", audit)
+        disabled = {item["id"]: item["reason"] for item in audit["disabled_parameters"]}
+        self.assertIn("front_chamfer_width", disabled)
+        self.assertIn("must not use preview.effect generic_morph", disabled["front_chamfer_width"])
+
+    def test_review_parameter_audit_requires_scope_for_generic_morph_in_strict_mode(self) -> None:
+        manifest_path = self.project / "review" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["parameters"][0]["preview"] = {"effect": "generic_morph", "baseline": manifest["parameters"][0]["value"]}
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        basic = audit_review_parameters.audit(self.project, mode="basic")
+        self.assertEqual(basic["status"], "warn", basic)
+        self.assertIn("generic_morph must declare", "\n".join(basic["warnings"]))
+
+        strict = audit_review_parameters.audit(self.project, mode="strict")
+        self.assertEqual(strict["status"], "fail", strict)
+        disabled = {item["id"]: item["reason"] for item in strict["disabled_parameters"]}
+        self.assertIn("body_length", disabled)
+        self.assertIn("generic_morph must declare", disabled["body_length"])
+
+    def test_review_parameter_audit_allows_scoped_generic_morph_for_global_parameter(self) -> None:
+        self.write_fake_model_source()
+        manifest_path = self.project / "review" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["parameters"][0]["preview"] = {
+            "effect": "generic_morph",
+            "baseline": manifest["parameters"][0]["value"],
+            "scope": "whole-envelope preview approximation",
+            "rationale": "unit test global envelope parameter",
+        }
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        audit = audit_review_parameters.audit(self.project, mode="strict")
+        self.assertNotEqual(audit["status"], "fail", audit)
+        self.assertIn("body_length", audit["valid_preview_parameters"])
+
     def test_review_parameter_audit_reports_backend_only_candidate(self) -> None:
         self.write_fake_model_source()
         manifest_path = self.project / "review" / "manifest.json"
