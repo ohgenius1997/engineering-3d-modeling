@@ -39,6 +39,28 @@ PREVIEW_EFFECTS = {
 }
 AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
 DISABLE_ACTION = "set preview.effect to none and remove from review manifest"
+LOCAL_FEATURE_KEYWORDS = {
+    "battery",
+    "base",
+    "boss",
+    "chamfer",
+    "clearance",
+    "connector",
+    "cut",
+    "cutout",
+    "edge",
+    "fillet",
+    "groove",
+    "hole",
+    "layout",
+    "mount",
+    "pcb",
+    "pocket",
+    "port",
+    "rib",
+    "slot",
+    "thread",
+}
 
 
 def load_yaml_module():
@@ -109,6 +131,57 @@ def preview_effect(preview: dict[str, Any] | None) -> str | None:
         return None
     effect = preview.get("effect")
     return effect if isinstance(effect, str) else None
+
+
+def text_fragments(*values: Any) -> list[str]:
+    fragments: list[str] = []
+    for value in values:
+        if isinstance(value, str):
+            fragments.append(value.lower())
+        elif isinstance(value, dict):
+            for nested in value.values():
+                if isinstance(nested, str):
+                    fragments.append(nested.lower())
+        elif isinstance(value, list):
+            for nested in value:
+                if isinstance(nested, str):
+                    fragments.append(nested.lower())
+    return fragments
+
+
+def local_feature_matches(parameter_id: str, parameter: dict[str, Any], data: Any) -> list[str]:
+    label = parameter.get("label")
+    role = parameter.get("role")
+    validation = parameter_validation(data)
+    if isinstance(data, dict):
+        label = label or data.get("label")
+        role = role or data.get("role")
+    fragments = text_fragments(parameter_id, label, role, validation)
+    matches = sorted(keyword for keyword in LOCAL_FEATURE_KEYWORDS if any(keyword in fragment for fragment in fragments))
+    local_flags = [
+        "affects_local_feature",
+        "requires_local_preview",
+        "requires_adapter_preview",
+        "localized_geometry",
+    ]
+    if any(validation.get(flag) is True for flag in local_flags):
+        matches.append("validation-local-feature")
+    return sorted(set(matches))
+
+
+def has_preview_scope(preview: dict[str, Any] | None) -> bool:
+    if not isinstance(preview, dict):
+        return False
+    scope = preview.get("scope")
+    if isinstance(scope, str) and scope.strip():
+        return True
+    feature_refs = preview.get("feature_refs")
+    if isinstance(feature_refs, list) and any(isinstance(ref, str) and ref.strip() for ref in feature_refs):
+        return True
+    rationale = preview.get("rationale")
+    if isinstance(rationale, str) and rationale.strip():
+        return True
+    return False
 
 
 def disabled(parameter_id: str, reason: str) -> dict[str, str]:
@@ -721,6 +794,29 @@ def audit(project: Path, *, mode: str = "basic") -> dict[str, Any]:
         if numeric(preview.get("factor")) == 0 if isinstance(preview, dict) else False:
             disabled_parameters.append(disabled(parameter_id, "preview metadata uses placeholder factor: 0"))
             continue
+        if effect == "generic_morph":
+            matches = local_feature_matches(parameter_id, parameter, data)
+            if matches:
+                disabled_parameters.append(
+                    disabled(
+                        parameter_id,
+                        (
+                            "localized engineering feature parameters must not use preview.effect generic_morph; "
+                            f"matched {', '.join(matches)}. Use preview.effect adapter with feature-scoped preview, "
+                            "or keep the parameter backend-only."
+                        ),
+                    )
+                )
+                continue
+            if not has_preview_scope(preview):
+                message = (
+                    "preview.effect generic_morph must declare preview.scope, preview.feature_refs, or "
+                    "preview.rationale so reviewers know it is an intentional model-specific approximation"
+                )
+                if mode == "strict":
+                    disabled_parameters.append(disabled(parameter_id, message))
+                    continue
+                warnings.append(f"{parameter_id}: {message}")
 
         if effect == "adapter":
             try:

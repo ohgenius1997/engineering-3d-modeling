@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -363,9 +364,9 @@ The current model is a Fusion 360 API script.
         codes = {item["code"] for item in strict["errors"]}
         self.assertIn("validation_report_stale_parameter_value", codes)
 
-    @unittest.skipUnless(Path("/Users/bytedance/Documents/导流罩").exists(), "guide-vane sample project not present")
+    @unittest.skipUnless(os.environ.get("ENGINEERING_3D_SAMPLE_PROJECT"), "sample project path not configured")
     def test_consistency_audit_detects_guide_vane_sample_drift(self) -> None:
-        sample = Path("/Users/bytedance/Documents/导流罩")
+        sample = Path(os.environ["ENGINEERING_3D_SAMPLE_PROJECT"])
         report = audit_project_consistency.audit(sample, mode="strict")
         self.assertEqual(report["status"], "fail", report)
         codes = {item["code"] for item in report["errors"] + report["warnings"]}
@@ -663,6 +664,74 @@ The current model is a Fusion 360 API script.
         report = validate_model_project.validate(self.project, require_step=False, review_parameter_audit="strict")
         self.assertEqual(report["status"], "fail")
         self.assertIn("shroud_wall", "\n".join(report["errors"]))
+
+    def test_review_parameter_audit_rejects_local_feature_generic_morph(self) -> None:
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["front_chamfer_width"] = {
+            "value": 1.0,
+            "unit": "mm",
+            "role": "localized_chamfer",
+            "preview": {"effect": "generic_morph", "baseline": 1.0, "rationale": "incorrect test binding"},
+            "ui": {"editable": True, "control": "slider", "min": 0.0, "max": 3.0, "step": 0.25},
+            "validation": {"affects_geometry": True, "affects_local_feature": True},
+        }
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+
+        manifest_path = self.project / "review" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["parameters"].append(
+            {
+                "id": "front_chamfer_width",
+                "label": "Front chamfer width",
+                "value": 1.0,
+                "unit": "mm",
+                "min": 0.0,
+                "max": 3.0,
+                "step": 0.25,
+                "preview": {"effect": "generic_morph", "baseline": 1.0, "rationale": "incorrect test binding"},
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        audit = audit_review_parameters.audit(self.project, mode="basic")
+        self.assertEqual(audit["status"], "fail", audit)
+        disabled = {item["id"]: item["reason"] for item in audit["disabled_parameters"]}
+        self.assertIn("front_chamfer_width", disabled)
+        self.assertIn("must not use preview.effect generic_morph", disabled["front_chamfer_width"])
+
+    def test_review_parameter_audit_requires_scope_for_generic_morph_in_strict_mode(self) -> None:
+        manifest_path = self.project / "review" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["parameters"][0]["preview"] = {"effect": "generic_morph", "baseline": manifest["parameters"][0]["value"]}
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        basic = audit_review_parameters.audit(self.project, mode="basic")
+        self.assertEqual(basic["status"], "warn", basic)
+        self.assertIn("generic_morph must declare", "\n".join(basic["warnings"]))
+
+        strict = audit_review_parameters.audit(self.project, mode="strict")
+        self.assertEqual(strict["status"], "fail", strict)
+        disabled = {item["id"]: item["reason"] for item in strict["disabled_parameters"]}
+        self.assertIn("body_length", disabled)
+        self.assertIn("generic_morph must declare", disabled["body_length"])
+
+    def test_review_parameter_audit_allows_scoped_generic_morph_for_global_parameter(self) -> None:
+        self.write_fake_model_source()
+        manifest_path = self.project / "review" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["parameters"][0]["preview"] = {
+            "effect": "generic_morph",
+            "baseline": manifest["parameters"][0]["value"],
+            "scope": "whole-envelope preview approximation",
+            "rationale": "unit test global envelope parameter",
+        }
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        audit = audit_review_parameters.audit(self.project, mode="strict")
+        self.assertNotEqual(audit["status"], "fail", audit)
+        self.assertIn("body_length", audit["valid_preview_parameters"])
 
     def test_review_parameter_audit_reports_backend_only_candidate(self) -> None:
         self.write_fake_model_source()

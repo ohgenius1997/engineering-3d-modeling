@@ -68,7 +68,8 @@ Move from `draft_review` to `accepted_current`, and from `accepted_current` to `
 V1 HTML review may support:
 
 - STEP or derived preview display.
-- Parameter controls only for simple, safe parameters with explicit live preview bindings, such as wall thickness, fillets, clearances, lengths, hole diameters, thread specs, chamfers, shell thickness, and rib counts when the preview effect is known to be model-appropriate. Numeric review parameters must render as sliders. Do not infer preview behavior from parameter names, labels, or roles.
+- Parameter controls only for simple, safe parameters with explicit live preview bindings, such as global dimensions, uniform offsets, and formula-backed values when the preview effect is known to be model-appropriate. Numeric review parameters must render as sliders. Do not infer preview behavior from parameter names, labels, or roles.
+- Do not bind localized engineering features such as chamfers, fillets, holes, mounts, connector cutouts, PCB or battery clearances, base positions, ribs, slots, threads, or layout positions to `preview.effect: "generic_morph"`. Use `preview.effect: "adapter"` with a model-specific preview adapter, or keep the parameter backend-only until regeneration. Any intentional `generic_morph` must declare `preview.scope`, `preview.feature_refs`, or `preview.rationale` so audit can distinguish it from a placeholder.
 - Equation-driven projects may opt into a model-specific `preview.adapter_js` formula preview adapter. Use this when real-time review must regenerate a derived preview mesh from the same model formulas, such as guide-vane count, airfoil thickness, or camber angle. Adapter-backed parameters use `preview.effect: "adapter"` and still save patches for backend regeneration; the adapter is preview-only and must not replace build123d validation or accepted/release STEP output.
 - Canvas-attached assembly part show/hide and isolate controls.
 - Annotation records with editable text and optional snapped refs for parts, faces, edges, vertices, and named features.
@@ -106,7 +107,7 @@ Read only the references needed for the task:
 - `scripts/roll_revision.py`: compatibility alias for copying the current state into `previous/`; prefer `begin_model_iteration.py` for new iteration work.
 - `scripts/sync_review_parameters.py`: sync only explicit live-preview-bound `parameters.yaml` entries into `review/manifest.json` for HTML sliders; command-line use audits synced parameters by default.
 - `scripts/validate_model_project.py`: check required files, bundled JSON schemas, review data, patch domain rules, phase-aware STEP presence, review parameter audit, handoff/current consistency audit for `release_handoff` or `--strict-consistency`, parameter-to-geometry smoke when requested, and forbidden downstream outputs. `--require-step` forces a delivery check.
-- `scripts/serve_review.py`: serve a model project's review UI and safely write `review/annotations.json` plus `review/parameter_patch.json` only after schema and parameter-domain validation passes.
+- `scripts/serve_review.py`: serve one model project's review UI and safely write `review/annotations.json` plus `review/parameter_patch.json` only after schema and parameter-domain validation passes. Use `--port 0` when multiple review projects may run at once; the script prints the actual assigned URL.
 
 Run scripts from the skill directory or pass absolute paths. They use only the Python standard library.
 

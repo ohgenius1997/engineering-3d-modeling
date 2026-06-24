@@ -71,7 +71,13 @@
               "baseline": {"type": "number"},
               "anchor": {"type": "string", "enum": ["center", "origin"]},
               "origin": {"$ref": "#/$defs/vec3"},
-              "factor": {"type": "number"}
+              "factor": {"type": "number"},
+              "scope": {"type": "string"},
+              "feature_refs": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "rationale": {"type": "string"}
             }
           }
         }

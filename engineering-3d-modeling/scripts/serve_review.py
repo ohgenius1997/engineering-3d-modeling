@@ -180,7 +180,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_path", help="Model project root containing review/index.html")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=8765, help="Local port to bind; use 0 to auto-assign a free port")
     args = parser.parse_args()
 
     project = Path(args.project_path).expanduser().resolve()

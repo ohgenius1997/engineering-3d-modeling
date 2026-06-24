@@ -102,7 +102,7 @@ Rules:
 - `review/annotations.json` is for user-authored review requests only. Do not store agent diagnostics, baseline analysis, or consumed notes there; use `validation/` or `brief.md` instead.
 - After consuming review annotations into a new model revision, clear current review state with the installed skill's `scripts/reset_review_state.py` so the next review starts empty.
 - For a single `part` project, keep `manifest.parts` to zero or one real part and use mesh `feature_id` for shroud, hub, vanes, holes, and other subregions. Multiple `part_id` groups are for assemblies.
-- Keep `review/index.html` present. Serve it through the installed skill's `scripts/serve_review.py` when the page needs to save annotations or parameter patches back to local files.
+- Keep `review/index.html` present. Serve it through the installed skill's `scripts/serve_review.py --port 0` when the page needs to save annotations or parameter patches back to local files; report the printed URL because the operating system assigns the actual port.
 - Use the installed skill's `scripts/restore_previous.py --force` when the last iteration must be rolled back from `previous/`; the command defaults to dry-run without `--force`.
 - Validate the model project with the installed skill's `scripts/validate_model_project.py` after structural or review-workflow changes. Its default STEP requirement follows `spec/current.yaml` `lifecycle.phase`; use `--require-step` for forced delivery checks.
 - Keep `lifecycle.phase` as `draft_review` while STEP is intentionally deferred. Move it to `accepted_current` or `release_handoff` only with the installed skill's `scripts/promote_model_project.py`; do not edit the phase by hand to claim completion.
