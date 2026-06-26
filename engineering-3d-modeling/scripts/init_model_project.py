@@ -53,7 +53,7 @@ def brief_text(name: str, kind: str) -> str:
 
 ## Goal
 
-Create a maintainable engineering CAD {kind} project that preserves editable authoring truth and exports STEP when the current result is accepted or handed off.
+Create a maintainable engineering CAD {kind} project that preserves editable authoring truth, supports continuous preview iteration, and exports STEP directly when the visible result is satisfactory.
 
 ## Selected Direction
 
@@ -67,7 +67,7 @@ Record drawings, photos, STEP references, datasheets, and legacy source under `i
 
 - Units default to mm until changed.
 - build123d is the default backend.
-- This scaffold starts in `draft_review`; STEP can be deferred until `accepted_current` or `release_handoff`.
+- This scaffold starts in `draft_review`; STEP can be exported directly with `scripts/export_step.py` when the preview is satisfactory.
 - HTML review comments are structured review data until converted into spec, parameter, or source changes.
 
 ## Open Questions
@@ -89,24 +89,28 @@ Project facts:
 - Kind: {kind}
 - Default backend: build123d
 - Authoring truth: `brief.md`, `spec/current.yaml`, `parameters.yaml`, `source/model.py`, and validation evidence
-- CAD exchange/delivery output: STEP under `outputs/step/`, required for `accepted_current` and `release_handoff`
-- STEP state: `outputs/step/manifest.json`, where draft STEP is distinct from accepted/release STEP
+- CAD exchange/delivery output: STEP under `outputs/step/`, exported directly with `scripts/export_step.py`
+- STEP state: `outputs/step/manifest.json`, where `exported` means fresh direct STEP and `stale: true` means authoring truth or preview changed after export
 - Review artifacts: `review/manifest.json`, `review/annotations.json`, `review/parameter_patch.json`, `review/index.html`, and `review/cache/`
+- Preview rollback: `checkpoints/preview_previous/` plus `validation/preview_revision.json`
 
 Rules:
 - Do not hand-roll a replacement review HTML. Use the installed skill's `assets/review-template/index.html` or rerun the installed skill's `scripts/init_model_project.py` to restore it.
 - Before running build123d generation, check dependencies with the installed skill's `scripts/check_environment.py --json` using the same Python that will execute `source/model.py`; if required packages are missing, rerun it with `--install` before continuing and request permission if pip, network, or environment writes are blocked.
-- Before consuming saved review patches/annotations or changing authoring truth/derived outputs, run the installed skill's `scripts/begin_model_iteration.py` to snapshot current state into `previous/`. If this project is `accepted_current` or `release_handoff`, that command must return current state to `draft_review`.
-- Before regenerating from HTML review, prefer the installed skill's `scripts/regenerate_from_review.py --start-new-iteration` to apply `review/parameter_patch.json`, rebuild backend CAD, sync and audit review parameters, clear consumed review state, and validate. If running the steps manually, begin the iteration first, apply the parameter patch, then convert user annotations into spec/source changes before clearing them.
+- Before any operation that will change the visible HTML preview model, save the current visible revision with `scripts/checkpoint_preview_revision.py --reason "...";` this is the default "go back one version" checkpoint.
+- Use `scripts/restore_preview_revision.py` to inspect that rollback and `scripts/restore_preview_revision.py --force` to restore it. Use `scripts/restore_previous.py --force` only to undo a whole coarse iteration from `previous/`.
+- Before regenerating from HTML review, prefer the installed skill's `scripts/regenerate_from_review.py` to apply `review/parameter_patch.json`, rebuild backend CAD, checkpoint the previous preview, sync and audit review parameters, clear consumed review state, and validate. If running the steps manually, checkpoint the preview first, apply the parameter patch, then convert user annotations into spec/source changes before clearing them.
+- `previous/` and `scripts/begin_model_iteration.py` remain optional coarse compatibility safety points for a whole modeling attempt, not the default meaning of "return to the previous version."
 - After editing `parameters.yaml`, sync only parameters with explicit live preview metadata into the HTML manifest with the installed skill's `scripts/sync_review_parameters.py`; then audit exposed parameters with `scripts/audit_review_parameters.py --mode strict` after geometry or preview behavior changes. Parameters without correct live preview bindings should stay in the agent-led regeneration workflow.
 - `review/annotations.json` is for user-authored review requests only. Do not store agent diagnostics, baseline analysis, or consumed notes there; use `validation/` or `brief.md` instead.
 - After consuming review annotations into a new model revision, clear current review state with the installed skill's `scripts/reset_review_state.py` so the next review starts empty.
 - For a single `part` project, keep `manifest.parts` to zero or one real part and use mesh `feature_id` for shroud, hub, vanes, holes, and other subregions. Multiple `part_id` groups are for assemblies.
 - Keep `review/index.html` present. Serve it through the installed skill's `scripts/serve_review.py --port 0` when the page needs to save annotations or parameter patches back to local files; report the printed URL because the operating system assigns the actual port.
-- Use the installed skill's `scripts/restore_previous.py --force` when the last iteration must be rolled back from `previous/`; the command defaults to dry-run without `--force`.
-- Validate the model project with the installed skill's `scripts/validate_model_project.py` after structural or review-workflow changes. Its default STEP requirement follows `spec/current.yaml` `lifecycle.phase`; use `--require-step` for forced delivery checks.
-- Keep `lifecycle.phase` as `draft_review` while STEP is intentionally deferred. Move it to `accepted_current` or `release_handoff` only with the installed skill's `scripts/promote_model_project.py`; do not edit the phase by hand to claim completion.
-- Draft STEP may exist, but accepted/release STEP state is valid only when `outputs/step/manifest.json` was written by `scripts/promote_model_project.py`.
+- Validate the model project with the installed skill's `scripts/validate_model_project.py` after structural or review-workflow changes. Use `--require-step` for forced delivery checks.
+- When the user is satisfied with the preview, export usable STEP directly with `scripts/export_step.py`. It fails while `review/parameter_patch.json` or `review/annotations.json` contains unconsumed review data.
+- If authoring truth or the visible preview changes after STEP export, treat `outputs/step/manifest.json` as stale and rerun `scripts/export_step.py` before using STEP as current output.
+- Generate a delivery/release zip only when requested with `scripts/create_handoff_package.py`; handoff is a package action, not a required daily lifecycle promotion.
+- `scripts/promote_model_project.py` remains a compatibility entry for old accepted/release workflows, but do not force routine modeling through accept/handoff promotion.
 - Do not add STL, 3MF, G-code, slicer, simulation, animation, or rendering deliverables unless the user explicitly leaves this skill's V1 scope.
 </INSTRUCTIONS>
 """
@@ -125,7 +129,7 @@ model:
 lifecycle:
   phase: draft_review
   status: in_progress
-  note: STEP may be deferred while this project is in draft/review; do not treat it as complete until accepted_current or release_handoff validates STEP.
+  note: STEP may be deferred while this project is in draft/review; export fresh STEP with scripts/export_step.py when the preview is satisfactory.
 inputs: []
 backend:
   default: build123d
@@ -323,14 +327,24 @@ def scaffold(project: Path, name: str, kind: str, per_part_step: bool, force: bo
         "inputs",
         "source",
         "outputs/step",
+        "outputs/handoff",
         "validation",
         "review/cache",
         "previous",
+        "checkpoints/preview_previous",
     ]
     for directory in directories:
         (project / directory).mkdir(parents=True, exist_ok=True)
 
-    for keep in ["inputs/.gitkeep", "outputs/step/.gitkeep", "validation/.gitkeep", "review/cache/.gitkeep", "previous/.gitkeep"]:
+    for keep in [
+        "inputs/.gitkeep",
+        "outputs/step/.gitkeep",
+        "outputs/handoff/.gitkeep",
+        "validation/.gitkeep",
+        "review/cache/.gitkeep",
+        "previous/.gitkeep",
+        "checkpoints/preview_previous/.gitkeep",
+    ]:
         write_text(project / keep, "", force)
 
     write_text(project / "brief.md", brief_text(name, kind), force)

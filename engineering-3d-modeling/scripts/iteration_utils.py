@@ -13,8 +13,11 @@ from typing import Any
 
 ITERATION_SCHEMA = "engineering-3d-modeling.iteration.v1"
 STEP_MANIFEST_SCHEMA = "engineering-3d-modeling.step_manifest.v1"
+PREVIEW_REVISION_SCHEMA = "engineering-3d-modeling.preview_revision.v1"
 ITERATION_METADATA_REL = "validation/iteration.json"
 STEP_MANIFEST_REL = "outputs/step/manifest.json"
+PREVIEW_REVISION_REL = "validation/preview_revision.json"
+PREVIEW_CHECKPOINT_REL = "checkpoints/preview_previous"
 
 SNAPSHOT_PATHS = [
     "brief.md",
@@ -25,6 +28,15 @@ SNAPSHOT_PATHS = [
     "outputs",
     "validation",
     "review",
+]
+
+PREVIEW_CHECKPOINT_PATHS = [
+    "spec/current.yaml",
+    "parameters.yaml",
+    "source",
+    "review/manifest.json",
+    "review/cache",
+    "outputs/step",
 ]
 
 
@@ -312,6 +324,8 @@ def write_step_manifest(
         "previous_state": previous_state or (existing.get("state") if isinstance(existing, dict) else None),
         "source_hash": file_sha256(project / "source" / "model.py"),
         "parameters_hash": file_sha256(project / "parameters.yaml"),
+        "spec_hash": file_sha256(project / "spec" / "current.yaml"),
+        "review_mesh_hash": preview_mesh_hash(project),
         "step_files": step_file_records(project),
     }
     write_json_doc(step_manifest_path(project), manifest)
@@ -328,6 +342,168 @@ def mark_draft_step(project: Path, *, generated_by: str, stale: bool, reason: st
         stale=stale,
         stale_reason=reason,
     )
+
+
+def mark_step_manifest_stale(project: Path, *, reason: str, updated_by: str) -> dict[str, Any] | None:
+    manifest = load_step_manifest(project)
+    if manifest is None:
+        return None
+    manifest["stale"] = True
+    manifest["stale_reason"] = reason
+    manifest["stale_at"] = utc_now()
+    manifest["stale_by"] = updated_by
+    manifest["previous_state"] = manifest.get("state")
+    write_json_doc(step_manifest_path(project), manifest)
+    return manifest
+
+
+def refresh_step_freshness(project: Path, *, updated_by: str) -> dict[str, Any] | None:
+    manifest = load_step_manifest(project)
+    if manifest is None or manifest.get("stale") is True:
+        return manifest
+
+    comparisons = {
+        "source_hash": file_sha256(project / "source" / "model.py"),
+        "parameters_hash": file_sha256(project / "parameters.yaml"),
+        "spec_hash": file_sha256(project / "spec" / "current.yaml"),
+        "review_mesh_hash": preview_mesh_hash(project),
+    }
+    changed = []
+    for key, current_hash in comparisons.items():
+        recorded_hash = manifest.get(key)
+        if recorded_hash is None or current_hash is None:
+            continue
+        if str(recorded_hash).lower() != str(current_hash).lower():
+            changed.append(key)
+    if not changed:
+        return manifest
+    return mark_step_manifest_stale(
+        project,
+        reason="authoring truth or preview mesh changed since STEP export: " + ", ".join(changed),
+        updated_by=updated_by,
+    )
+
+
+def preview_mesh_path(project: Path) -> Path | None:
+    manifest_path = project / "review" / "manifest.json"
+    try:
+        manifest = load_json_doc(manifest_path)
+    except RuntimeError:
+        return None
+    preview = manifest.get("preview")
+    if not isinstance(preview, dict):
+        return None
+    mesh_value = preview.get("mesh_json")
+    if not isinstance(mesh_value, str) or not mesh_value:
+        return None
+    path = (project / "review" / mesh_value).resolve()
+    review_root = (project / "review").resolve()
+    if path != review_root and review_root not in path.parents:
+        return None
+    return path
+
+
+def preview_mesh_hash(project: Path) -> str | None:
+    path = preview_mesh_path(project)
+    return file_sha256(path) if path is not None else None
+
+
+def authoring_hashes(project: Path) -> dict[str, str | None]:
+    return {
+        "spec": file_sha256(project / "spec" / "current.yaml"),
+        "parameters": file_sha256(project / "parameters.yaml"),
+        "source": file_sha256(project / "source" / "model.py"),
+        "review_manifest": file_sha256(project / "review" / "manifest.json"),
+        "review_mesh": preview_mesh_hash(project),
+    }
+
+
+def ensure_safe_preview_checkpoint(project: Path) -> Path:
+    checkpoint = (project / PREVIEW_CHECKPOINT_REL).resolve()
+    project_resolved = project.resolve()
+    if checkpoint.name != "preview_previous" or checkpoint.parent.name != "checkpoints" or checkpoint.parent.parent != project_resolved:
+        raise RuntimeError(f"unsafe preview checkpoint path: {checkpoint}")
+    return checkpoint
+
+
+def preview_checkpoint_entries(checkpoint: Path) -> list[str]:
+    if not checkpoint.exists():
+        return []
+    entries: list[str] = []
+    for path in checkpoint.rglob("*"):
+        rel = str(path.relative_to(checkpoint))
+        if rel == ".gitkeep":
+            continue
+        entries.append(rel)
+    return sorted(entries)
+
+
+def planned_preview_checkpoint_paths(project: Path) -> tuple[list[str], list[str]]:
+    copied = []
+    missing = []
+    for rel in PREVIEW_CHECKPOINT_PATHS:
+        if (project / rel).exists():
+            copied.append(rel)
+        else:
+            missing.append(rel)
+    return copied, missing
+
+
+def checkpoint_preview_revision(
+    project: Path,
+    *,
+    reason: str,
+    created_by: str,
+    force: bool = True,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    project = project.expanduser().resolve()
+    checkpoint = ensure_safe_preview_checkpoint(project)
+    existing = preview_checkpoint_entries(checkpoint)
+    hashes_before = authoring_hashes(project)
+    if dry_run:
+        copied, missing = planned_preview_checkpoint_paths(project)
+        return {
+            "schema": PREVIEW_REVISION_SCHEMA,
+            "status": "dry-run",
+            "project": str(project),
+            "checkpoint": PREVIEW_CHECKPOINT_REL,
+            "reason": reason,
+            "would_overwrite": existing,
+            "would_copy": copied,
+            "missing": missing,
+            "hashes_before": hashes_before,
+        }
+
+    if existing and not force:
+        raise RuntimeError("preview checkpoint already exists; pass --force to replace it")
+    if checkpoint.exists():
+        shutil.rmtree(checkpoint)
+    checkpoint.mkdir(parents=True)
+
+    copied = []
+    missing = []
+    for rel in PREVIEW_CHECKPOINT_PATHS:
+        if copy_item(project, checkpoint, rel):
+            copied.append(rel)
+        else:
+            missing.append(rel)
+
+    metadata = {
+        "schema": PREVIEW_REVISION_SCHEMA,
+        "status": "available",
+        "created_at": utc_now(),
+        "created_by": created_by,
+        "reason": reason,
+        "checkpoint": PREVIEW_CHECKPOINT_REL,
+        "hashes_before": hashes_before,
+        "files": copied,
+        "missing": missing,
+        "checkpoint_hash": tree_hash(checkpoint, ignore_names={"REVISION_INFO.json", ".gitkeep"}),
+    }
+    write_json_doc(project / PREVIEW_REVISION_REL, metadata)
+    write_json_doc(checkpoint / "REVISION_INFO.json", metadata)
+    return metadata
 
 
 def pending_patch_count(project: Path) -> int:

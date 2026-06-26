@@ -22,7 +22,7 @@ import iteration_utils
 
 SCHEMA = "engineering-3d-modeling.project_consistency_audit.v1"
 PROJECT_PHASES = {"draft_review", "accepted_current", "release_handoff", "backend_override"}
-STEP_REQUIRED_PHASES = {"accepted_current", "release_handoff"}
+STEP_REQUIRED_PHASES: set[str] = set()
 STEP_PROMOTION_SCRIPT = "scripts/promote_model_project.py"
 LEGACY_BACKEND_RE = re.compile(r"\b(fusion\s*360|fusion360|fusion api|legacy)\b", re.IGNORECASE)
 FUSION_RE = re.compile(r"\bfusion(?:\s*360|360)?\b", re.IGNORECASE)
@@ -183,13 +183,13 @@ def backend_override(spec: Any) -> tuple[bool, str | None, str | None]:
 
 
 def severity_for_current(phase: str, mode: str) -> str:
-    if mode == "strict" or phase in STEP_REQUIRED_PHASES:
+    if mode == "strict":
         return "error"
     return "warning"
 
 
 def severity_for_snapshot(phase: str, mode: str) -> str:
-    if mode == "strict" or phase == "release_handoff":
+    if mode == "strict":
         return "error"
     return "warning"
 
@@ -436,11 +436,12 @@ def compare_step_state(
     phase: str,
     mode: str,
 ) -> list[Path]:
+    iteration_utils.refresh_step_freshness(project, updated_by="scripts/audit_project_consistency.py")
     files = step_files(project)
     expected = spec_step_path(project, spec)
     manifest_step = resolve_from(project / "review", manifest_current(manifest).get("step"))
     step_manifest = load_step_manifest(project, issues)
-    required = phase in STEP_REQUIRED_PHASES
+    required = mode == "strict" or phase in STEP_REQUIRED_PHASES
     severity = severity_for_current(phase, mode)
 
     if files:
@@ -505,18 +506,18 @@ def compare_step_state(
     if step_manifest.get("schema") != iteration_utils.STEP_MANIFEST_SCHEMA:
         add_issue(issues, "error", "step_manifest_schema", "outputs/step/manifest.json schema is missing or unexpected")
     state = step_manifest.get("state")
-    if state not in {"draft", "accepted_current", "release_handoff"}:
+    if state not in {"draft", "exported", "accepted_current", "release_handoff"}:
         add_issue(issues, "error", "step_manifest_state_invalid", "outputs/step/manifest.json has an invalid state", state=state)
     elif required:
-        if state != phase:
+        if state not in {"exported", "accepted_current", "release_handoff"}:
             add_issue(
                 issues,
                 "error",
                 "step_manifest_state_mismatch",
-                f"phase {phase} requires STEP manifest state {phase}",
+                "strict delivery audit requires a fresh exported or legacy promoted STEP manifest state",
                 state=state,
             )
-        if step_manifest.get("promoted_by") != STEP_PROMOTION_SCRIPT:
+        if state in {"accepted_current", "release_handoff"} and step_manifest.get("promoted_by") != STEP_PROMOTION_SCRIPT:
             add_issue(
                 issues,
                 "error",
@@ -533,6 +534,15 @@ def compare_step_state(
             "step_manifest_promoted_in_draft",
             "draft project still carries accepted/release STEP manifest semantics",
             state=state,
+        )
+    elif step_manifest.get("stale") is True:
+        add_issue(
+            issues,
+            "error" if mode == "strict" else "warning",
+            "step_manifest_stale",
+            "outputs/step/manifest.json is stale relative to current authoring truth or preview mesh",
+            state=state,
+            stale_reason=step_manifest.get("stale_reason"),
         )
     else:
         checks.append({"check": "step-manifest-state", "status": "pass", "state": state})
@@ -642,7 +652,7 @@ def compare_mesh_snapshot(
     preview = manifest_preview(manifest)
     mesh_path = resolve_from(project / "review", preview.get("mesh_json"))
     if mesh_path is None:
-        add_issue(issues, "warning" if mode != "strict" and phase == "draft_review" else "error", "mesh_not_declared", "review/manifest.json preview.mesh_json is missing")
+        add_issue(issues, "warning" if mode != "strict" else "error", "mesh_not_declared", "review/manifest.json preview.mesh_json is missing")
         return None, None
     errors: list[dict[str, Any]] = []
     mesh = load_json(mesh_path, errors, missing_severity=severity_for_current(phase, mode))
@@ -913,7 +923,7 @@ def audit(project: Path, *, mode: str = "auto") -> dict[str, Any]:
     else:
         checks.append({"check": "lifecycle-phase", "status": "pass", "phase": phase, "source": phase_source})
 
-    effective_mode = "strict" if mode == "strict" or (mode == "auto" and phase == "release_handoff") else "warn"
+    effective_mode = "strict" if mode == "strict" else "warn"
 
     has_override, override_name, override_reason = backend_override(spec)
     override_allowed = phase == "backend_override" and bool(override_name and override_reason)
@@ -1032,7 +1042,7 @@ def render_summary(report: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_path", help="Model project root")
-    parser.add_argument("--mode", choices=["auto", "warn", "strict"], default="auto", help="Audit strictness; auto is strict for release_handoff only")
+    parser.add_argument("--mode", choices=["auto", "warn", "strict"], default="auto", help="Audit strictness; auto is lightweight warn mode, strict is for export/package claims")
     parser.add_argument("--format", choices=["json", "summary", "both"], default="json", help="Output machine JSON, human summary, or both")
     args = parser.parse_args()
 

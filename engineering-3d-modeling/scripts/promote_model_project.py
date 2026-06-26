@@ -416,6 +416,10 @@ def promote_mutable(
 ) -> dict[str, Any]:
     project = project.expanduser().resolve()
     report = base_report(project, target_phase)
+    report["warnings"].append(
+        "compatibility flow: promote_model_project.py is retained for legacy accepted/release projects; "
+        "routine modeling should use preview checkpoints, scripts/export_step.py, and scripts/create_handoff_package.py"
+    )
     spec_path = project / "spec" / "current.yaml"
     report_path = project / "validation" / "report.json"
 

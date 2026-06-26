@@ -19,15 +19,15 @@
 - Domain: engineering 3D model generation
 - Profile: standard
 - Dynamic memory: agentmemory
-- Current phase: main skill updates synced back to dev-full
+- Current phase: product-level preview/export/handoff workflow refactor complete
 - Current branch: dev-full
-- Latest conclusion: Public `main` commit `83eca97` review CAD-edge and precise picking updates have been copied back into local `dev-full` under `engineering-3d-modeling/`.
-- Next step: continue day-to-day skill development on `dev-full`; when publishing, copy only public-safe `engineering-3d-modeling/` changes to `main` and push `origin/main`.
-- Blockers: no functional blocker. Full unit tests pass when run outside the managed sandbox because the review-server test must bind `127.0.0.1`.
-- Active risks: existing model projects with STEP files but no `outputs/step/manifest.json` now fail strict current/handoff checks until regenerated or promoted; guide-vane sample still has stale validation report fields and missing mesh parameter snapshot; brief/report stale-parameter detection remains heuristic.
+- Latest conclusion: New daily CAD workflow is implemented and documented: preview revision rollback is the default previous-version restore, STEP exports directly with fresh/stale manifest tracking, and handoff is an optional strict zip package. Legacy promotion remains as compatibility.
+- Next step: review/commit the refactor on `dev-full`; publishing to remote `main` should still be handled separately after checking branch policy.
+- Blockers: no functional blocker.
+- Active risks: existing projects with legacy `accepted_current`/`release_handoff` phase metadata remain supported, but agents should avoid treating those states as mandatory daily flow; strict handoff package creation requires enough current preview/validation evidence to prove consistency.
 
 ## Handoff
-- Last completed: synchronized latest public skill template/documentation/test changes from `main` back to `dev-full`.
-- In progress: no active blocker.
-- Validation done: review-template inline JavaScript parses; `quick_validate.py engineering-3d-modeling` passes; prior full test suite has 42 passing tests when run with permission to bind the local review server.
-- Known risks: guide-vane has a populated `previous/`, so a real begin-iteration rollback refresh would require explicit `--force`; existing projects may need one-time STEP manifest creation through regeneration/promotion.
+- Last completed: read AGENTS, PROJECT_STATUS, DECISIONS, SKILL, and relevant model-project/review/validation/script context for the workflow refactor.
+- In progress: complete.
+- Validation done: `check_environment.py --json` pass; `quick_validate.py engineering-3d-modeling` pass; full unittest pass with 48 tests and 1 environment-gated skip when run outside sandbox for local review-server binding; `git diff --check` pass; installed `.codex` and `.agents` skill copies synced and quick-validated.
+- Known risks: legacy promotion language remains only in compatibility sections and scripts.

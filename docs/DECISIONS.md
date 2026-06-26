@@ -41,6 +41,7 @@
 - 2026-06-19 - Make lifecycle promotion script-owned
 - 2026-06-20 - Make iteration rollback and STEP state explicit
 - 2026-06-22 - Guard review previews against misleading generic morphs
+- 2026-06-26 - Make preview revisions, direct STEP export, and optional handoff packages the daily CAD flow
 
 ## Decision Log
 
@@ -200,6 +201,7 @@
 - Consequences: `draft_review -> accepted_current -> release_handoff` is the only default order. Failed promotions restore the original phase/report, and direct draft-to-release requires explicit `--allow-skip-accepted` while still running both validation gates.
 
 ### 2026-06-20 - Make iteration rollback and STEP state explicit
+- Status: Refined by `2026-06-26 - Make preview revisions, direct STEP export, and optional handoff packages the daily CAD flow`.
 - Decision: Treat `previous/` as a one-step rollback snapshot for every true modeling iteration, and treat `outputs/step/manifest.json` as the authority for whether STEP is draft, accepted current, or release handoff.
 - Rationale: Dogfood continuation showed two unsafe paths: agents could regenerate over accepted/handoff projects without first preserving rollback state, and STEP files could remain present after a new iteration while still being implicitly treated as accepted or release output.
 - Alternatives considered: Keep `previous/` as accepted-only and rely on agents to remember manual reverse edits; rejected because it loses rollback for failed draft iterations. Use STEP file presence alone; rejected because file presence cannot distinguish draft preview output from promotion-gate output.
@@ -210,3 +212,9 @@
 - Rationale: Dogfood showed a slider can appear useful when a generic mesh deformation changes the preview, while the deformation does not match the real CAD operation, such as a chamfer width. A false live preview is worse than a backend-only parameter.
 - Alternatives considered: Rely on documentation that says not to infer preview behavior; rejected because agents can still explicitly write the wrong preview binding. Ban all generic morphs; rejected because whole-model or deliberately approximate review deformations can still be useful when labeled and scoped.
 - Consequences: `audit_review_parameters.py` now rejects high-risk local-feature terms such as chamfer, fillet, hole, mount, cutout, clearance, layout, PCB, battery, rib, slot, and thread when bound to `generic_morph`. Strict audit also rejects unscoped generic morphs. Local feature previews should use model-specific adapters or stay in the backend regeneration workflow.
+
+### 2026-06-26 - Make preview revisions, direct STEP export, and optional handoff packages the daily CAD flow
+- Decision: Routine model development follows continuous `adjust -> preview -> adjust` semantics. The default "go back one version" operation restores the previous visible preview revision from `checkpoints/preview_previous/`, while `previous/` remains a coarse whole-attempt compatibility snapshot. Users can export usable STEP directly with `scripts/export_step.py`; handoff is an optional zip package action via `scripts/create_handoff_package.py`, not a required lifecycle promotion.
+- Rationale: CAD modeling usually changes through many small visible preview revisions. Requiring `accepted_current -> release_handoff` promotion before STEP export made everyday modeling feel like a lifecycle state machine instead of a product workflow and made rollback too coarse.
+- Alternatives considered: keep `accepted_current`/`release_handoff` as mandatory gates for every usable STEP; rejected because preview satisfaction should be enough to export a fresh CAD exchange file. Use only Git for rollback; rejected because "previous preview" needs to be local, immediate, and independent of repository commits.
+- Consequences: `scripts/regenerate_from_review.py` creates preview checkpoints and marks existing STEP manifests stale before preview-changing work. `scripts/export_step.py` writes `state: "exported"` with freshness hashes and `stale: false`. `scripts/create_handoff_package.py` performs strict consistency and packages a whitelist of reproducible deliverables. `scripts/promote_model_project.py` remains available as a compatibility flow for old accepted/release projects but is no longer the recommended daily path.

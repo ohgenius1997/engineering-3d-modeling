@@ -16,8 +16,9 @@ V1 validation should distinguish:
 - collision/interference checks,
 - review data checks,
 - current-vs-previous regression checks when relevant.
-- lifecycle phase checks that decide whether STEP and promoted STEP manifest state are required.
-- handoff/current consistency checks that compare authoring truth, review artifacts, STEP outputs, and validation reports.
+- work-state checks that report whether STEP is present and fresh without forcing routine preview iteration through lifecycle promotion.
+- export-level checks for fresh direct STEP output.
+- strict handoff package checks that compare authoring truth, review artifacts, STEP outputs, validation reports, and package manifests.
 
 ## Minimum Project Checks
 
@@ -35,23 +36,47 @@ Check that these exist:
 - `review/annotations.json`,
 - `review/parameter_patch.json`,
 - `previous/`.
+- `checkpoints/`.
 
-`spec/current.yaml` should include `lifecycle.phase`. If it is missing, validators treat the project as `draft_review` and warn that the state is not accepted or release-ready.
+`spec/current.yaml` may include `lifecycle.phase` as a coarse work-state or legacy compatibility label. Missing phase is treated as `draft_review`.
 
-## Phase-Aware STEP Checks
+## STEP Freshness Checks
 
 Use these default STEP requirements:
 
-- `draft_review`: STEP may be missing. Report the phase and warn that the state is not complete, accepted, or release-ready.
-- `accepted_current`: STEP should be present under `outputs/step/`, and `outputs/step/manifest.json` must have `state: "accepted_current"` and `promoted_by: "scripts/promote_model_project.py"`.
-- `release_handoff`: STEP must be present, `outputs/step/manifest.json` must have `state: "release_handoff"` and `promoted_by: "scripts/promote_model_project.py"`, and validation should use strict review-parameter audit.
+- Ordinary work/review validation: STEP may be missing. Report warnings so agents do not describe the state as exported or handed off.
+- Direct STEP export: `scripts/export_step.py` must produce STEP under `outputs/step/`, write `outputs/step/manifest.json` with `state: "exported"` and `stale: false`, and record source/spec/parameter/review-mesh/STEP hashes.
+- Forced delivery check: `scripts/validate_model_project.py --require-step` must fail when STEP is missing or `outputs/step/manifest.json` is stale.
+- Strict handoff package check: `scripts/create_handoff_package.py` must require a fresh deliverable STEP manifest (`exported` or a legacy promoted state), strict consistency, and no pending review data.
 - `backend_override`: STEP may be deferred only as an explicit temporary backend state. The spec must record `backend.override` with backend/name and reason.
 
-Draft STEP is allowed for review, but a manifest with `state: "draft"` cannot satisfy `accepted_current` or `release_handoff`. A project in `draft_review` must not carry accepted/release STEP manifest semantics; run `scripts/begin_model_iteration.py` when continuing from a promoted project.
+Draft STEP is allowed for review, but a manifest with `state: "draft"` or `stale: true` cannot satisfy a forced delivery check or handoff package. Continuing work after export does not require leaving a lifecycle state; mark the STEP manifest stale and rerun `scripts/export_step.py` when STEP is needed again.
 
 Use `scripts/validate_model_project.py --require-step` when a delivery check must fail without STEP regardless of phase.
 
-## Lifecycle Promotion Gates
+## Direct Export Gate
+
+Use `scripts/export_step.py` when the user is satisfied with the preview and wants usable STEP. The export gate must:
+
+- reject non-empty `review/annotations.json` and non-empty `review/parameter_patch.json`;
+- run current `source/model.py` from the project root;
+- require at least one STEP/STP file under `outputs/step/`;
+- check STEP file existence, hash, readability, and any available BRep/bounding-box signature;
+- write `outputs/step/manifest.json` with `state: "exported"`, source/spec/parameter/review-mesh hashes, STEP hashes, validation summary, and `stale: false`;
+- write or refresh `validation/report.json` after export-level validation passes.
+
+## Handoff Package Gate
+
+Use `scripts/create_handoff_package.py` only when a delivery/release package is requested. The package gate must:
+
+- reject pending review annotations and parameter patches;
+- require fresh STEP from `scripts/export_step.py` or a compatible legacy promoted state;
+- run strict consistency audit;
+- create a zip under `outputs/handoff/`;
+- include only deliverable and reproducible files such as STEP, README, handoff manifest, `spec/current.yaml`, `parameters.yaml`, `source/model.py`, `validation/report.json`, `review/index.html`, `review/manifest.json`, and `review/cache/current_mesh.json`;
+- exclude `previous/`, `checkpoints/`, pending review data, private raw inputs unless explicitly allowed, temporary caches, test outputs, and research notes.
+
+## Compatibility Lifecycle Promotion
 
 Use `scripts/promote_model_project.py` when changing `spec/current.yaml` `lifecycle.phase` to `accepted_current` or `release_handoff`. The validator proves a state; the promotion script owns the phase transition and report refresh.
 
@@ -66,11 +91,11 @@ The promotion gate must:
 - reject `backend_override` or lingering `spec.backend.override` unless the override is cleared or `--accept-backend-override-reason` records why the exception is accepted;
 - restore the original phase, STEP manifest, and `validation/report.json` on failure.
 
-For `accepted_current`, run validation with STEP required and write a fresh `validation/report.json` after the phase update passes. For `release_handoff`, first run strict consistency against the accepted current state, then write `release_handoff`, refresh `validation/report.json`, and run strict consistency again so the final report proves the release snapshot.
+For `accepted_current`, run validation with STEP required and write a fresh `validation/report.json` after the phase update passes. For `release_handoff`, first run strict consistency against the accepted current state, then write `release_handoff`, refresh `validation/report.json`, and run strict consistency again so the final report proves the legacy release snapshot. This is retained for compatibility; new daily export/handoff should use `export_step.py` and `create_handoff_package.py`.
 
 ## Handoff/Current Consistency Audit
 
-Before calling a model current, accepted, handed off, or release-ready, run:
+Before creating a handoff package or making a release claim, run:
 
 ```bash
 python3 engineering-3d-modeling/scripts/audit_project_consistency.py /path/to/model-project --mode strict
@@ -82,26 +107,26 @@ or include it in structural validation:
 python3 engineering-3d-modeling/scripts/validate_model_project.py /path/to/model-project --strict-consistency
 ```
 
-`validate_model_project.py` also runs strict consistency automatically for `release_handoff`.
+`validate_model_project.py` runs strict consistency only when explicitly requested with `--strict-consistency` / `--consistency-audit strict`; `create_handoff_package.py` runs strict consistency automatically.
 
 The audit checks:
 
-- `spec/current.yaml` records `lifecycle.phase`; missing phase is a warning for draft review and a failure in strict handoff audit.
+- `spec/current.yaml` records enough work-state/backend information for the audit; missing lifecycle phase is a warning, not a default daily blocker.
 - `review/manifest.json` `versions.current.source` points to the current authoring source, usually `source/model.py`, not `inputs/legacy/` or a Fusion reference.
-- `brief.md` does not describe old backend state, old core parameter values, or accepted/release STEP status that conflicts with the lifecycle phase. Heuristic findings are warnings unless strict/current handoff rules make them blocking.
+- `brief.md` does not describe old backend state, old core parameter values, or STEP/handoff status that conflicts with current files. Heuristic findings are warnings unless strict handoff rules make them blocking.
 - `validation/report.json` records the current snapshot, including `generated_at`, phase, current artifact paths, and hashes or equivalent evidence for source, parameters, review manifest, mesh, STEP, and STEP manifest when present.
-- `outputs/step/` matches the phase. `draft_review` may miss STEP with a warning; `accepted_current` and `release_handoff` fail without STEP, without `outputs/step/manifest.json`, or with a draft/stale/unpromoted manifest.
+- `outputs/step/` has a fresh manifest when STEP is being delivered. Work/review states may miss STEP with a warning; strict handoff fails without STEP, without `outputs/step/manifest.json`, or with a draft/stale manifest.
 - `parameters.yaml`, manifest-exposed parameters, `review/cache/current_mesh.json`, and validation report current fields do not disagree on parameter values or units.
 - Fusion or other non-default current backend exceptions are allowed only when `spec/current.yaml` records `lifecycle.phase: backend_override` plus `backend.override.backend` or `backend.override.name` and `backend.override.reason`.
 
-Use warning findings as handoff blockers when they mean the agent cannot prove current state. Do not silence them by editing reports alone; regenerate or resync the stale artifact from authoring truth.
+Use warning findings as handoff blockers when they mean the agent cannot prove current state. Do not silence them by editing reports alone; regenerate, resync, or re-export stale artifacts from authoring truth.
 
 ## Geometry Checks
 
 For parts:
 
 - build completes,
-- STEP exports when the phase requires accepted or handoff output,
+- STEP exports when the user requests delivery or handoff output,
 - model is non-empty,
 - explicitly geometry-affecting parameters change the backend model signature when perturbed within declared bounds,
 - key dimensions match parameters,
@@ -115,7 +140,7 @@ For assemblies:
 - collisions are absent or explicitly intentional,
 - clearances meet rules,
 - access openings align with components,
-- assembly STEP exports when the phase requires accepted or handoff output.
+- assembly STEP exports when the user requests delivery or handoff output.
 
 ## Review Checks
 
@@ -144,16 +169,17 @@ Prefer a machine-readable report plus a short human summary:
 ```json
 {
   "schema": "engineering-3d-modeling.validation_report.v1",
-  "phase": {"value": "accepted_current", "source": "spec.lifecycle.phase"},
-  "step_requirement": {"required": true, "reason": "phase:accepted_current"},
+  "phase": {"value": "draft_review", "source": "spec.lifecycle.phase"},
+  "step_requirement": {"required": true, "reason": "--require-step"},
   "status": "pass",
   "checks": [],
   "warnings": [],
   "errors": [],
   "step_manifest": {
-    "state": "accepted_current",
-    "generated_for_phase": "accepted_current",
-    "promoted_by": "scripts/promote_model_project.py"
+    "state": "exported",
+    "generated_for_phase": "draft_review",
+    "generated_by": "scripts/export_step.py",
+    "stale": false
   },
   "outputs": {
     "assembly_step": "outputs/step/example.step",
@@ -161,7 +187,7 @@ Prefer a machine-readable report plus a short human summary:
   },
   "snapshot": {
     "generated_at": "2026-06-19T00:00:00Z",
-    "phase": {"value": "accepted_current", "source": "spec.lifecycle.phase"},
+    "phase": {"value": "draft_review", "source": "spec.lifecycle.phase"},
     "files": {
       "parameters": {"path": "parameters.yaml", "sha256": "..."},
       "source": {"path": "source/model.py", "sha256": "..."},
