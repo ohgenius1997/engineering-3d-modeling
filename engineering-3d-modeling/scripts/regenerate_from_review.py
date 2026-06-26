@@ -143,20 +143,7 @@ def regenerate(
     annotation_count = pending_annotation_count(project)
     patch_count = iteration_utils.pending_patch_count(project)
     active_iteration = iteration_utils.active_iteration(project)
-    must_begin_iteration = bool(patch_count or annotation_count or phase in {"accepted_current", "release_handoff"})
-    if must_begin_iteration and active_iteration is None:
-        if not start_new_iteration:
-            return fail(
-                report,
-                "preflight-iteration",
-                (
-                    "review changes or an accepted/release phase require a new iteration boundary before regeneration. "
-                    "Run scripts/begin_model_iteration.py first, or rerun regenerate_from_review.py with --start-new-iteration."
-                ),
-                parameter_patch_count=patch_count,
-                annotation_count=annotation_count,
-                phase=phase,
-            )
+    if start_new_iteration and active_iteration is None:
         begin_result = begin_model_iteration.begin_iteration(
             project,
             force=force_iteration,
@@ -181,13 +168,6 @@ def regenerate(
         report["phase"] = {"value": phase, "source": phase_info["source"]}
         report["step_requirement"] = {"required": step_required, "reason": step_requirement_reason}
         active_iteration = iteration_utils.active_iteration(project)
-    elif phase in {"accepted_current", "release_handoff"}:
-        return fail(
-            report,
-            "preflight-iteration-phase",
-            "active iteration metadata is present but spec/current.yaml is still accepted_current or release_handoff; run begin_model_iteration.py to return the project to draft_review before regeneration",
-            phase=phase,
-        )
     else:
         report["steps"].append(
             {
@@ -196,6 +176,7 @@ def regenerate(
                 "parameter_patch_count": patch_count,
                 "annotation_count": annotation_count,
                 "active_iteration": active_iteration is not None,
+                "message": "preview revision checkpoint is the default one-step rollback; previous/ iteration snapshots are optional compatibility safety points",
             }
         )
 
@@ -218,6 +199,37 @@ def regenerate(
             "will_clear_annotations": bool(clear_annotations or annotation_count == 0),
         }
     )
+
+    checkpoint = iteration_utils.checkpoint_preview_revision(
+        project,
+        reason=iteration_reason or "regenerate_from_review.py before changing the visible preview model",
+        created_by="scripts/regenerate_from_review.py",
+        force=True,
+    )
+    report["written"].extend([iteration_utils.PREVIEW_REVISION_REL, iteration_utils.PREVIEW_CHECKPOINT_REL])
+    report["steps"].append(
+        {
+            "step": "checkpoint-preview-revision",
+            "status": "pass",
+            "checkpoint": checkpoint.get("checkpoint"),
+            "hashes_before": checkpoint.get("hashes_before"),
+        }
+    )
+    stale_manifest = iteration_utils.mark_step_manifest_stale(
+        project,
+        reason="review regeneration is changing authoring truth or visible preview; rerun scripts/export_step.py for a fresh STEP",
+        updated_by="scripts/regenerate_from_review.py",
+    )
+    if stale_manifest is not None:
+        report["written"].append(iteration_utils.STEP_MANIFEST_REL)
+        report["steps"].append(
+            {
+                "step": "mark-step-stale",
+                "status": "pass",
+                "state": stale_manifest.get("state"),
+                "stale": stale_manifest.get("stale"),
+            }
+        )
 
     if not skip_environment_check:
         step = environment_step(python_executable)
@@ -249,18 +261,22 @@ def regenerate(
         report["status"] = "fail"
         return report
     if iteration_utils.step_files(project):
-        step_manifest = iteration_utils.mark_draft_step(
-            project,
-            generated_by="scripts/regenerate_from_review.py",
-            stale=False,
-            reason="draft STEP generated during review regeneration",
-        )
-        report["written"].append(iteration_utils.STEP_MANIFEST_REL)
+        step_manifest = iteration_utils.load_step_manifest(project)
+        if step_manifest is None:
+            step_manifest = iteration_utils.mark_draft_step(
+                project,
+                generated_by="scripts/regenerate_from_review.py",
+                stale=True,
+                reason="review regeneration touched the preview; export_step.py has not confirmed STEP freshness",
+            )
+            report["written"].append(iteration_utils.STEP_MANIFEST_REL)
         report["steps"].append(
             {
-                "step": "mark-step-draft",
+                "step": "step-output-stale-until-export",
                 "status": "pass",
-                "step_file_count": len(step_manifest.get("step_files", [])),
+                "step_file_count": len(iteration_utils.step_files(project)),
+                "manifest_state": step_manifest.get("state") if isinstance(step_manifest, dict) else None,
+                "stale": step_manifest.get("stale") if isinstance(step_manifest, dict) else None,
             }
         )
 
@@ -404,7 +420,7 @@ def main() -> int:
         "--review-parameter-audit",
         choices=["auto", "basic", "strict"],
         default="auto",
-        help="Audit strength used after syncing review parameters; auto uses strict for release_handoff and basic otherwise",
+        help="Audit strength used after syncing review parameters; auto uses basic review audit",
     )
     parser.add_argument("--skip-validation", action="store_true", help="Do not run validate_model_project.py after rebuilding")
     parser.add_argument("--skip-geometry-smoke", action="store_true", help="Do not run parameter-to-geometry smoke validation")
@@ -412,7 +428,7 @@ def main() -> int:
     parser.add_argument(
         "--start-new-iteration",
         action="store_true",
-        help="Automatically run begin_model_iteration.py before consuming saved review data or leaving accepted/release state",
+        help="Also run begin_model_iteration.py to create a coarse previous/ snapshot before regeneration",
     )
     parser.add_argument(
         "--force-iteration",

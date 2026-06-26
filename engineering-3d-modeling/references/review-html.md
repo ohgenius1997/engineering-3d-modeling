@@ -13,7 +13,7 @@ V1 review data lives in:
 
 Annotations are user-authored review input. Do not store agent diagnostics, baseline analysis, implementation notes, or already-consumed comments in `review/annotations.json`; write those to `validation/`, `brief.md`, or source comments instead. Clear current annotations after converting them into the next model revision.
 
-Review artifacts and cache files are derived from authoring truth. They are useful for feedback, live preview, and annotations, but they do not replace `spec/current.yaml`, `parameters.yaml`, source/formula modules, validation evidence, or accepted/release STEP output.
+Review artifacts and cache files are derived from authoring truth. They are useful for feedback, live preview, and annotations, but they do not replace `spec/current.yaml`, `parameters.yaml`, source/formula modules, validation evidence, or direct STEP export.
 
 ## Allowed V1 Features
 
@@ -92,7 +92,7 @@ Adapter-backed parameters use `preview.effect: "adapter"`:
 }
 ```
 
-Use an adapter only when the model-specific formula preview is kept aligned with backend source and validation. It may change vertex counts, face counts, and topology for review preview, such as blade count changes, but it is still not CAD truth. Saving still writes parameter patches, then backend regeneration and validation must update authoring truth and, for `accepted_current` or `release_handoff`, produce authoritative STEP plus refreshed preview assets.
+Use an adapter only when the model-specific formula preview is kept aligned with backend source and validation. It may change vertex counts, face counts, and topology for review preview, such as blade count changes, but it is still not CAD truth. Saving still writes parameter patches, then backend regeneration and validation must update authoring truth, refresh preview assets, and mark any existing STEP export stale until `scripts/export_step.py` is rerun.
 
 For a single-part project, `parts` should be empty or contain one real part. Use mesh face `feature_id` to identify shroud walls, hubs, vanes, holes, bosses, ribs, and other subregions. Multiple `part_id` values are for assembly components or separate generated parts, not features inside one joined solid.
 
@@ -184,7 +184,7 @@ The save endpoint must validate both review documents before writing. `annotatio
 }
 ```
 
-`target` may be `null` for a global annotation. Annotations are review data and are normally cleared after the agent consumes them into spec, parameter, or source changes for the next model revision. `scripts/promote_model_project.py` treats any current annotation record as unconsumed review input and blocks `accepted_current` or `release_handoff` promotion until the record is consumed and cleared.
+`target` may be `null` for a global annotation. Annotations are review data and are normally cleared after the agent consumes them into spec, parameter, or source changes for the next model revision. `scripts/export_step.py` and `scripts/create_handoff_package.py` treat any current annotation record as unconsumed review input and block export or packaging until the record is consumed and cleared. The legacy `scripts/promote_model_project.py` does the same for compatibility promotions.
 
 The optional `target.pick` block is current-review helper data only. It may record face barycentric coordinates, an edge key plus interpolation parameter `t`, or a vertex index and screen point. Do not treat `pick` as stable topology truth across regeneration. Agents should rely on `snapped_point`, `feature_id`, `label`, `normal`, and nearby spec/source context when consuming annotation intent.
 
@@ -207,24 +207,36 @@ The optional `target.pick` block is current-review helper data only. It may reco
 }
 ```
 
-A parameter patch is not final model truth until an iteration has begun, the backend regenerates, and validation passes. A non-empty `review/parameter_patch.json` blocks lifecycle promotion; run `scripts/regenerate_from_review.py --start-new-iteration` or begin the iteration manually, apply, regenerate, validate, and clear the patch before promoting.
+A parameter patch is not final model truth until the backend regenerates from it and validation passes. A non-empty `review/parameter_patch.json` blocks STEP export, handoff package creation, and compatibility lifecycle promotion; run `scripts/regenerate_from_review.py` or apply, regenerate, validate, and clear the patch manually.
 
 Patches are intentionally narrow. They are for HTML review parameters only, not a generic way to change hidden model parameters. A patch that references an unknown parameter, a parameter omitted from `review/manifest.json`, a locked parameter, a wrong value type, a unit mismatch, an out-of-bounds value, or a value off the declared slider step should be rejected before it changes `parameters.yaml`.
 
 Before regenerating from a reviewed project, prefer the total review loop command:
 
 ```bash
-python3 engineering-3d-modeling/scripts/regenerate_from_review.py /path/to/model-project --start-new-iteration
+python3 engineering-3d-modeling/scripts/regenerate_from_review.py /path/to/model-project
 ```
 
-It starts a new iteration when needed, applies saved parameter patches, runs `source/model.py`, syncs preview-bound parameters into the manifest, writes `validation/report.json`, and clears consumed review state after validation succeeds. If the project was `accepted_current` or `release_handoff`, the iteration starts by snapshotting current state into `previous/` and returning `spec/current.yaml` to `draft_review`. Regenerated STEP is marked as draft in `outputs/step/manifest.json`; accepted/release STEP state must come later from `scripts/promote_model_project.py`.
+It checkpoints the previous visible preview into `checkpoints/preview_previous/`, records `validation/preview_revision.json`, applies saved parameter patches, runs `source/model.py`, syncs preview-bound parameters into the manifest, writes `validation/report.json`, marks any existing STEP manifest stale, and clears consumed review state after validation succeeds. If you also want a coarse whole-attempt rollback point in `previous/`, pass `--start-new-iteration`.
 
-Without `--start-new-iteration`, the command fails when `review/parameter_patch.json` or `review/annotations.json` is non-empty and no active `validation/iteration.json` exists. It also fails instead of regenerating directly from `accepted_current` or `release_handoff`.
-
-For manual debugging, begin the iteration before applying saved patches or editing spec/source:
+"Go back one version" means:
 
 ```bash
-python3 engineering-3d-modeling/scripts/begin_model_iteration.py /path/to/model-project --reason "consume saved review patch"
+python3 engineering-3d-modeling/scripts/restore_preview_revision.py /path/to/model-project
+python3 engineering-3d-modeling/scripts/restore_preview_revision.py /path/to/model-project --force
+```
+
+"Undo the whole modeling attempt" means restoring `previous/`:
+
+```bash
+python3 engineering-3d-modeling/scripts/restore_previous.py /path/to/model-project
+python3 engineering-3d-modeling/scripts/restore_previous.py /path/to/model-project --force
+```
+
+For manual debugging, checkpoint the preview before applying saved patches or editing spec/source:
+
+```bash
+python3 engineering-3d-modeling/scripts/checkpoint_preview_revision.py /path/to/model-project --reason "manual review patch"
 ```
 
 Then apply saved patches before backend regeneration:

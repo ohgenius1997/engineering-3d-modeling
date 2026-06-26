@@ -1,5 +1,14 @@
 # Project Status
 
+## 2026-06-26
+
+- Synced the product-level CAD workflow refactor from `dev-full` into public `main`.
+- Daily modeling now centers on continuous preview revisions: adjust, preview, and adjust again.
+- Added preview rollback tooling so "go back one version" restores `checkpoints/preview_previous/`, while `previous/` remains a coarse whole-attempt rollback point.
+- Added direct STEP export with freshness tracking through `scripts/export_step.py` and `outputs/step/manifest.json` `state: "exported"` / `stale` fields.
+- Added optional strict handoff zip generation through `scripts/create_handoff_package.py`.
+- Kept legacy `accepted_current` / `release_handoff` promotion as compatibility behavior, not the recommended daily workflow.
+
 ## 2026-06-25
 
 - Updated `engineering-3d-modeling` review HTML template to remove the CAD edges / Mesh / Off display-mode toolbar and always render clean CAD-style edges.

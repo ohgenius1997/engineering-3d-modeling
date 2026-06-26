@@ -63,7 +63,7 @@ Layout, structural topology, major exterior form, and part count changes should 
 
 ## STEP Output
 
-Export STEP when the project moves to `accepted_current`, `release_handoff`, or an explicit CAD handoff. `draft_review` work may defer STEP while the model is still being reviewed, but that state is not complete. Do not export STL, 3MF, or G-code as default deliverables. Temporary preview meshes are allowed only as derived review cache assets.
+Export STEP with `scripts/export_step.py` when the current preview is satisfactory or a CAD handoff needs a fresh exchange file. Work/review iterations may defer STEP while the model is still being reviewed. Do not export STL, 3MF, or G-code as default deliverables. Temporary preview meshes are allowed only as derived review cache assets.
 
 Assemblies should export one assembly STEP by default. Per-part STEP files are optional and should be controlled by the spec or user request.
 

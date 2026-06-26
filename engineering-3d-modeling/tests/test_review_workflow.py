@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import zipfile
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
@@ -21,10 +22,14 @@ import apply_parameter_patch
 import audit_project_consistency
 import audit_review_parameters
 import begin_model_iteration
+import checkpoint_preview_revision
+import create_handoff_package
+import export_step
 import init_model_project
 import iteration_utils
 import promote_model_project
 import regenerate_from_review
+import restore_preview_revision
 import restore_previous
 import roll_revision
 import serve_review
@@ -211,6 +216,26 @@ def build_model(params: dict) -> Model:
             encoding="utf-8",
         )
 
+    def write_exporting_fake_model_source(self) -> None:
+        self.write_fake_model_source()
+        path = self.project / "source" / "model.py"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + '''
+
+def main() -> None:
+    out = Path("outputs/step/demo-model.step")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("ISO-10303-21;\\nHEADER;\\nENDSEC;\\nDATA;\\nENDSEC;\\nEND-ISO-10303-21;\\n", encoding="utf-8")
+    print(f"wrote {out}")
+
+
+if __name__ == "__main__":
+    main()
+''',
+            encoding="utf-8",
+        )
+
     def test_review_template_uses_cached_cad_edges_and_precise_pick_helpers(self) -> None:
         template = (SKILL_ROOT / "assets" / "review-template" / "index.html").read_text(encoding="utf-8")
         self.assertNotIn('data-edge-mode="mesh"', template)
@@ -322,15 +347,15 @@ def build_model(params: dict) -> Model:
         self.assertFalse(report["step_requirement"]["required"])
         self.assertIn("phase draft_review allows missing STEP/STP", "\n".join(report["warnings"]))
 
-    def test_validator_requires_step_in_accepted_current_phase(self) -> None:
+    def test_validator_does_not_force_step_from_legacy_accepted_phase(self) -> None:
         self.set_phase("accepted_current")
         report = validate_model_project.validate(self.project)
-        self.assertEqual(report["status"], "fail")
-        self.assertTrue(report["step_requirement"]["required"])
-        self.assertIn("phase accepted_current requires STEP/STP output", "\n".join(report["errors"]))
+        self.assertEqual(report["status"], "pass", report)
+        self.assertFalse(report["step_requirement"]["required"])
+        self.assertIn("allows missing STEP/STP", "\n".join(report["warnings"]))
 
         self.write_step_output()
-        self.write_step_manifest("accepted_current")
+        self.write_step_manifest("exported")
         report = validate_model_project.validate(self.project)
         self.assertEqual(report["status"], "pass", report)
         self.assertIn({"check": "step-output", "status": "pass"}, report["checks"])
@@ -342,14 +367,16 @@ def build_model(params: dict) -> Model:
         self.assertEqual(codes.get("step_missing_draft"), "warning")
         self.assertNotIn("step_missing_required_phase", codes)
 
-    def test_consistency_audit_fails_when_current_phases_lack_step(self) -> None:
+    def test_consistency_audit_warns_when_legacy_phases_lack_step_but_strict_fails(self) -> None:
         for phase in ["accepted_current", "release_handoff"]:
             with self.subTest(phase=phase):
                 self.set_phase(phase)
                 report = audit_project_consistency.audit(self.project)
-                self.assertEqual(report["status"], "fail", report)
-                codes = {item["code"] for item in report["errors"]}
-                self.assertIn("step_missing_required_phase", codes)
+                self.assertEqual(report["status"], "warn", report)
+                codes = {item["code"] for item in report["warnings"]}
+                self.assertIn("step_missing_draft", codes)
+                strict = audit_project_consistency.audit(self.project, mode="strict")
+                self.assertEqual(strict["status"], "fail", strict)
 
     def test_consistency_audit_flags_manifest_legacy_source(self) -> None:
         legacy_source = self.project / "source" / "fusion360_legacy.py"
@@ -406,19 +433,23 @@ The current model is a Fusion 360 API script.
         self.assertIn("brief_stale_backend_reference", codes)
         self.assertIn("validation_report_stale_parameter_value", codes)
 
-    def test_validator_uses_strict_audit_for_release_handoff_phase(self) -> None:
+    def test_validator_release_handoff_phase_is_lightweight_unless_strict_requested(self) -> None:
         self.write_fake_model_source()
         self.write_step_output()
-        self.write_step_manifest("release_handoff")
         self.write_mesh_cache()
         self.set_phase("release_handoff")
+        self.write_step_manifest("release_handoff")
         self.write_current_validation_report()
 
         report = validate_model_project.validate(self.project)
         self.assertEqual(report["status"], "pass", report)
-        self.assertEqual(report["review_parameter_audit_mode"], "strict")
-        self.assertEqual(report["step_requirement"]["reason"], "phase:release_handoff")
-        self.assertEqual(report["consistency_audit_mode"], "strict")
+        self.assertEqual(report["review_parameter_audit_mode"], "basic")
+        self.assertFalse(report["step_requirement"]["required"])
+        self.assertEqual(report["consistency_audit_mode"], "off")
+
+        strict = validate_model_project.validate(self.project, require_step=True, consistency_audit="strict")
+        self.assertEqual(strict["status"], "pass", strict)
+        self.assertEqual(strict["consistency_audit_mode"], "strict")
 
     def test_validator_require_step_overrides_draft_review_phase(self) -> None:
         report = validate_model_project.validate(self.project, require_step=True)
@@ -478,13 +509,13 @@ The current model is a Fusion 360 API script.
         self.assertFalse(result["step_requirement"]["required"])
         self.assertFalse(list((self.project / "outputs" / "step").glob("*.step")))
 
-    def test_regenerate_from_review_requires_step_in_accepted_current(self) -> None:
+    def test_regenerate_from_review_allows_legacy_accepted_phase_with_preview_checkpoint(self) -> None:
         self.write_fake_model_source()
         self.set_phase("accepted_current")
         result = self.regenerate_review_project()
-        self.assertEqual(result["status"], "fail", result)
+        self.assertEqual(result["status"], "pass", result)
         self.assertEqual(result["phase"]["value"], "accepted_current")
-        self.assertIn("new iteration boundary", result["steps"][-1]["message"])
+        self.assertTrue((self.project / "checkpoints" / "preview_previous" / "parameters.yaml").is_file())
 
     def test_regenerate_release_handoff_starts_new_iteration_as_draft(self) -> None:
         self.write_fake_model_source()
@@ -506,6 +537,7 @@ The current model is a Fusion 360 API script.
         result = promote_model_project.promote(self.project, target_phase="accepted_current")
 
         self.assertEqual(result["status"], "pass", result)
+        self.assertIn("compatibility flow", "\n".join(result["warnings"]))
         self.assertEqual(self.current_phase(), "accepted_current")
         self.assertIn("spec/current.yaml", result["written"])
         self.assertIn("validation/report.json", result["written"])
@@ -559,9 +591,9 @@ The current model is a Fusion 360 API script.
     def test_promote_accepted_current_to_release_handoff(self) -> None:
         self.write_fake_model_source()
         self.write_step_output()
-        self.write_step_manifest("accepted_current")
         self.write_mesh_cache()
         self.set_phase("accepted_current")
+        self.write_step_manifest("accepted_current")
         self.write_current_validation_report()
 
         result = promote_model_project.promote(self.project, target_phase="release_handoff")
@@ -580,9 +612,9 @@ The current model is a Fusion 360 API script.
     def test_promote_release_fails_without_current_report_snapshot(self) -> None:
         self.write_fake_model_source()
         self.write_step_output()
-        self.write_step_manifest("accepted_current")
         self.write_mesh_cache()
         self.set_phase("accepted_current")
+        self.write_step_manifest("accepted_current")
 
         result = promote_model_project.promote(self.project, target_phase="release_handoff")
 
@@ -798,23 +830,26 @@ The current model is a Fusion 360 API script.
         self.assertEqual(result["status"], "pass")
         self.assertFalse((previous / "old.txt").exists())
 
-    def test_draft_review_patch_requires_iteration_boundary(self) -> None:
+    def test_draft_review_patch_creates_preview_checkpoint_by_default(self) -> None:
         self.write_fake_model_source()
         self.write_patch(self.patch_doc("body_length", 55.0))
 
-        blocked = self.regenerate_review_project()
-        self.assertEqual(blocked["status"], "fail", blocked)
-        self.assertIn("new iteration boundary", blocked["steps"][-1]["message"])
+        result = self.regenerate_review_project()
+        self.assertEqual(result["status"], "pass", result)
+        self.assertTrue((self.project / "checkpoints" / "preview_previous" / "parameters.yaml").is_file())
+        preview_revision = json.loads((self.project / "validation" / "preview_revision.json").read_text(encoding="utf-8"))
+        self.assertEqual(preview_revision["schema"], "engineering-3d-modeling.preview_revision.v1")
 
         begun = begin_model_iteration.begin_iteration(self.project, reason="unit-test")
         self.assertEqual(begun["status"], "pass", begun)
         self.assertTrue((self.project / "previous" / "parameters.yaml").is_file())
+        self.write_patch(self.patch_doc("body_width", 30.0))
         result = self.regenerate_review_project()
         self.assertEqual(result["status"], "pass", result)
         iteration = json.loads((self.project / "validation" / "iteration.json").read_text(encoding="utf-8"))
         self.assertEqual(iteration["status"], "completed")
 
-    def test_accepted_current_patch_requires_iteration_by_default(self) -> None:
+    def test_accepted_current_patch_marks_existing_step_stale_by_default(self) -> None:
         self.write_fake_model_source()
         self.write_step_output()
         self.write_step_manifest("accepted_current")
@@ -822,9 +857,10 @@ The current model is a Fusion 360 API script.
         self.write_patch(self.patch_doc("body_length", 55.0))
 
         result = self.regenerate_review_project()
-        self.assertEqual(result["status"], "fail", result)
+        self.assertEqual(result["status"], "pass", result)
         self.assertEqual(self.current_phase(), "accepted_current")
-        self.assertIn("new iteration boundary", result["steps"][-1]["message"])
+        manifest = json.loads((self.project / "outputs" / "step" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(manifest["stale"])
 
     def test_accepted_current_start_new_iteration_returns_to_draft(self) -> None:
         self.write_fake_model_source()
@@ -841,15 +877,15 @@ The current model is a Fusion 360 API script.
         self.assertEqual(manifest["state"], "draft")
         self.assertIsNone(manifest["promoted_by"])
 
-    def test_draft_step_does_not_satisfy_accepted_or_release_validation(self) -> None:
+    def test_draft_step_does_not_satisfy_forced_delivery_when_stale(self) -> None:
         self.write_step_output()
-        self.write_step_manifest("draft")
+        self.write_step_manifest("draft", stale=True)
         for phase in ["accepted_current", "release_handoff"]:
             with self.subTest(phase=phase):
                 self.set_phase(phase)
-                report = validate_model_project.validate(self.project)
+                report = validate_model_project.validate(self.project, require_step=True)
                 self.assertEqual(report["status"], "fail")
-                self.assertIn("requires outputs/step/manifest.json state", "\n".join(report["errors"]))
+                self.assertIn("STEP manifest is stale", "\n".join(report["errors"]))
 
     def test_promote_accepted_current_marks_step_manifest(self) -> None:
         self.write_step_output()
@@ -865,9 +901,9 @@ The current model is a Fusion 360 API script.
     def test_promote_release_handoff_marks_step_manifest(self) -> None:
         self.write_fake_model_source()
         self.write_step_output()
-        self.write_step_manifest("accepted_current")
         self.write_mesh_cache()
         self.set_phase("accepted_current")
+        self.write_step_manifest("accepted_current")
         self.write_current_validation_report()
 
         result = promote_model_project.promote(self.project, target_phase="release_handoff")
@@ -877,6 +913,105 @@ The current model is a Fusion 360 API script.
         self.assertEqual(manifest["state"], "release_handoff")
         self.assertEqual(manifest["generated_for_phase"], "release_handoff")
         self.assertEqual(manifest["promoted_by"], "scripts/promote_model_project.py")
+
+    def test_preview_checkpoint_create_and_restore(self) -> None:
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        original = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+
+        result = checkpoint_preview_revision.checkpoint(self.project, reason="unit-test before preview edit")
+        self.assertEqual(result["status"], "pass", result)
+        self.assertTrue((self.project / "checkpoints" / "preview_previous" / "parameters.yaml").is_file())
+
+        changed = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        changed["parameters"]["body_length"]["value"] = 66.0
+        params_path.write_text(yaml.safe_dump(changed, sort_keys=False), encoding="utf-8")
+
+        dry = restore_preview_revision.restore_preview_revision(self.project)
+        self.assertEqual(dry["status"], "dry-run")
+        restored = restore_preview_revision.restore_preview_revision(self.project, force=True)
+        self.assertEqual(restored["status"], "pass", restored)
+        current = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        self.assertEqual(current["parameters"]["body_length"]["value"], original["parameters"]["body_length"]["value"])
+
+    def test_export_step_writes_fresh_manifest_and_validation_report(self) -> None:
+        self.write_exporting_fake_model_source()
+        self.write_mesh_cache()
+
+        result = export_step.export_step(self.project, python_executable=sys.executable)
+
+        self.assertEqual(result["status"], "pass", result)
+        manifest = json.loads((self.project / "outputs" / "step" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["state"], "exported")
+        self.assertFalse(manifest["stale"])
+        self.assertEqual(manifest["generated_by"], "scripts/export_step.py")
+        self.assertIn("review_mesh_hash", manifest)
+        self.assertTrue((self.project / "validation" / "report.json").is_file())
+
+    def test_export_step_fails_with_pending_review_data(self) -> None:
+        self.write_exporting_fake_model_source()
+        self.write_patch(self.patch_doc("body_length", 55.0))
+
+        result = export_step.export_step(self.project, python_executable=sys.executable)
+
+        self.assertEqual(result["status"], "fail", result)
+        self.assertIn("unconsumed review data", "\n".join(result["errors"]))
+
+    def test_step_manifest_becomes_stale_after_authoring_truth_changes(self) -> None:
+        self.write_exporting_fake_model_source()
+        exported = export_step.export_step(self.project, python_executable=sys.executable)
+        self.assertEqual(exported["status"], "pass", exported)
+
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["body_length"]["value"] = 61.0
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+
+        report = validate_model_project.validate(self.project, require_step=True)
+        self.assertEqual(report["status"], "fail")
+        manifest = json.loads((self.project / "outputs" / "step" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(manifest["stale"])
+
+    def test_create_handoff_package_zip_uses_whitelist_and_blocks_pending_review(self) -> None:
+        self.write_exporting_fake_model_source()
+        self.write_mesh_cache()
+        exported = export_step.export_step(self.project, python_executable=sys.executable)
+        self.assertEqual(exported["status"], "pass", exported)
+
+        blocked_annotations = {
+            "schema": "engineering-3d-modeling.annotations.v1",
+            "annotations": [
+                {
+                    "id": "ann-001",
+                    "created_at": "2026-06-26T00:00:00Z",
+                    "text": "pending",
+                    "target": None,
+                    "status": "open",
+                }
+            ],
+        }
+        (self.project / "review" / "annotations.json").write_text(json.dumps(blocked_annotations, indent=2) + "\n", encoding="utf-8")
+        blocked = create_handoff_package.create_package(self.project)
+        self.assertEqual(blocked["status"], "fail", blocked)
+        self.assertIn("unconsumed review", "\n".join(blocked["errors"]))
+
+        (self.project / "review" / "annotations.json").write_text(
+            json.dumps({"schema": "engineering-3d-modeling.annotations.v1", "annotations": []}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        package = create_handoff_package.create_package(self.project)
+        self.assertEqual(package["status"], "pass", package)
+        with zipfile.ZipFile(package["package"]) as archive:
+            names = set(archive.namelist())
+        self.assertIn("handoff_manifest.json", names)
+        self.assertIn("README.md", names)
+        self.assertIn("outputs/step/demo-model.step", names)
+        self.assertIn("spec/current.yaml", names)
+        self.assertIn("review/cache/current_mesh.json", names)
+        self.assertNotIn("previous/REVISION_INFO.json", names)
+        self.assertFalse(any(name.startswith("checkpoints/") for name in names))
+        self.assertFalse(any(name.endswith("parameter_patch.json") for name in names))
 
     def test_restore_previous_restores_current_truth_and_outputs(self) -> None:
         self.write_fake_model_source()

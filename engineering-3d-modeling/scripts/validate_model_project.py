@@ -50,8 +50,8 @@ REQUIRED_DIRS = [
 
 FORBIDDEN_OUTPUT_SUFFIXES = {".stl", ".3mf", ".gcode", ".bgcode"}
 PROJECT_PHASES = {"draft_review", "accepted_current", "release_handoff", "backend_override"}
-STEP_REQUIRED_PHASES = {"accepted_current", "release_handoff"}
-STEP_MANIFEST_STATES = {"draft", "accepted_current", "release_handoff"}
+STEP_REQUIRED_PHASES: set[str] = set()
+STEP_MANIFEST_STATES = {"draft", "exported", "accepted_current", "release_handoff"}
 STEP_PROMOTION_SCRIPT = "scripts/promote_model_project.py"
 
 
@@ -201,11 +201,13 @@ def validate_step_manifest(
     project: Path,
     *,
     phase: str,
+    step_required: bool,
     step_files: list[Path],
     errors: list[str],
     warnings: list[str],
     checks: list[dict[str, str]],
 ) -> dict[str, Any] | None:
+    iteration_utils.refresh_step_freshness(project, updated_by="scripts/validate_model_project.py")
     path = project / iteration_utils.STEP_MANIFEST_REL
     manifest = load_json(path, errors) if path.is_file() else None
     phase_requires_promoted_step = phase in STEP_REQUIRED_PHASES
@@ -290,6 +292,10 @@ def validate_step_manifest(
             f"draft_review project still carries {state} STEP manifest semantics; "
             "start a new iteration with scripts/begin_model_iteration.py to mark STEP as draft/stale"
         )
+    elif manifest.get("stale") is True and step_required:
+        errors.append("STEP manifest is stale; rerun scripts/export_step.py before delivery")
+    elif manifest.get("stale") is True:
+        warnings.append("STEP manifest is stale; rerun scripts/export_step.py before using STEP as current output")
 
     return manifest
 
@@ -297,8 +303,6 @@ def validate_step_manifest(
 def review_audit_mode_for_phase(mode: str, phase: str) -> str:
     if mode != "auto":
         return mode
-    if phase == "release_handoff":
-        return "strict"
     return "basic"
 
 
@@ -771,8 +775,6 @@ def build_snapshot(
 def consistency_mode_for_phase(mode: str, phase: str) -> str:
     if mode != "auto":
         return mode
-    if phase == "release_handoff":
-        return "strict"
     return "off"
 
 
@@ -920,6 +922,7 @@ def validate(
     step_manifest = validate_step_manifest(
         project,
         phase=phase,
+        step_required=step_required,
         step_files=step_files,
         errors=errors,
         warnings=warnings,
@@ -1004,7 +1007,7 @@ def main() -> int:
         "--review-parameter-audit",
         choices=["auto", "off", "basic", "strict"],
         default="auto",
-        help="Audit review manifest parameters; auto uses strict for release_handoff and basic otherwise",
+        help="Audit review manifest parameters; auto uses basic review audit",
     )
     parser.add_argument(
         "--strict-consistency",
