@@ -19,15 +19,15 @@
 - Domain: engineering 3D model generation
 - Profile: standard
 - Dynamic memory: agentmemory
-- Current phase: review HTML navigation aids implemented on dev-full
+- Current phase: main skill updates synced back to dev-full
 - Current branch: dev-full
-- Latest conclusion: The review template now shows a rotating lower-right XYZ axis triad, supports left-drag rotate and right-drag pan, and resets pan with the view reset command.
-- Next step: sync the updated skill package into `/Users/bytedance/.codex/skills/engineering-3d-modeling`, then replace existing projects' `review/index.html` from the installed template when they need the new navigation UI.
+- Latest conclusion: Public `main` commit `83eca97` review CAD-edge and precise picking updates have been copied back into local `dev-full` under `engineering-3d-modeling/`.
+- Next step: continue day-to-day skill development on `dev-full`; when publishing, copy only public-safe `engineering-3d-modeling/` changes to `main` and push `origin/main`.
 - Blockers: no functional blocker. Full unit tests pass when run outside the managed sandbox because the review-server test must bind `127.0.0.1`.
 - Active risks: existing model projects with STEP files but no `outputs/step/manifest.json` now fail strict current/handoff checks until regenerated or promoted; guide-vane sample still has stale validation report fields and missing mesh parameter snapshot; brief/report stale-parameter detection remains heuristic.
 
 ## Handoff
-- Last completed: added review-canvas navigation aids on top of prior CAD edge rendering and parameter-preview guardrails.
+- Last completed: synchronized latest public skill template/documentation/test changes from `main` back to `dev-full`.
 - In progress: no active blocker.
-- Validation done: review-template inline JavaScript parses; `quick_validate.py engineering-3d-modeling` passes; prior full test suite has 42 passing tests when run with permission to bind the local review server; `git diff --check` passes.
+- Validation done: review-template inline JavaScript parses; `quick_validate.py engineering-3d-modeling` passes; prior full test suite has 42 passing tests when run with permission to bind the local review server.
 - Known risks: guide-vane has a populated `previous/`, so a real begin-iteration rollback refresh would require explicit `--force`; existing projects may need one-time STEP manifest creation through regeneration/promotion.

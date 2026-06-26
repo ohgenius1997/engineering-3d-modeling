@@ -72,7 +72,7 @@ V1 HTML review may support:
 - Do not bind localized engineering features such as chamfers, fillets, holes, mounts, connector cutouts, PCB or battery clearances, base positions, ribs, slots, threads, or layout positions to `preview.effect: "generic_morph"`. Use `preview.effect: "adapter"` with a model-specific preview adapter, or keep the parameter backend-only until regeneration. Any intentional `generic_morph` must declare `preview.scope`, `preview.feature_refs`, or `preview.rationale` so audit can distinguish it from a placeholder.
 - Equation-driven projects may opt into a model-specific `preview.adapter_js` formula preview adapter. Use this when real-time review must regenerate a derived preview mesh from the same model formulas, such as guide-vane count, airfoil thickness, or camber angle. Adapter-backed parameters use `preview.effect: "adapter"` and still save patches for backend regeneration; the adapter is preview-only and must not replace build123d validation or accepted/release STEP output.
 - Canvas-attached assembly part show/hide and isolate controls.
-- Annotation records with editable text and optional snapped refs for parts, faces, edges, vertices, and named features.
+- Annotation records with editable text and optional precise snapped refs for parts, faces, CAD edges, vertices, and named features; review HTML should display clean CAD-style edges by default without exposing mesh wireframe/debug modes.
 - One save action that writes review data through the local review server when direct local-file persistence is needed.
 - Optional current-vs-previous comparison.
 

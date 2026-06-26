@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -209,6 +211,37 @@ def build_model(params: dict) -> Model:
             encoding="utf-8",
         )
 
+    def test_review_template_uses_cached_cad_edges_and_precise_pick_helpers(self) -> None:
+        template = (SKILL_ROOT / "assets" / "review-template" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('data-edge-mode="mesh"', template)
+        self.assertNotIn('data-edge-mode="off"', template)
+        self.assertNotIn("eg3dReviewEdgeMode", template)
+        self.assertNotIn("buildEdgeIndex", template)
+        self.assertIn("function buildRenderCache", template)
+        self.assertIn("RENDER_CACHE_EDGE_FACE_LIMIT", template)
+        self.assertIn("DIRECT_PREVIEW_EDGE_MAX_SEGMENTS", template)
+        self.assertIn("function classifyEdgeCacheGroups", template)
+        self.assertIn("function addEdgesForFaces", template)
+        self.assertIn("limitedFaceIndices", template)
+        self.assertIn("function drawDirectPreviewEdges", template)
+        self.assertIn("cadEdgeCandidates", template)
+        self.assertIn("function barycentric2d", template)
+        self.assertIn("function closestPointOnSegment", template)
+        self.assertIn("state.hoverTarget", template)
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is required for inline review-template JS syntax check")
+        script = template.split("<script>", 1)[1].split("</script>", 1)[0]
+        result = subprocess.run(
+            [node, "-e", "new Function(require('fs').readFileSync(0, 'utf-8'))"],
+            input=script,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_apply_parameter_patch_rejects_invalid_values(self) -> None:
         cases = [
             (self.patch_doc("unknown", 55.0), "unknown parameter"),
@@ -363,9 +396,9 @@ The current model is a Fusion 360 API script.
         codes = {item["code"] for item in strict["errors"]}
         self.assertIn("validation_report_stale_parameter_value", codes)
 
-    @unittest.skipUnless(Path("/Users/bytedance/Documents/导流罩").exists(), "guide-vane sample project not present")
+    @unittest.skipUnless(os.environ.get("ENGINEERING_3D_SAMPLE_PROJECT"), "sample project path not configured")
     def test_consistency_audit_detects_guide_vane_sample_drift(self) -> None:
-        sample = Path("/Users/bytedance/Documents/导流罩")
+        sample = Path(os.environ["ENGINEERING_3D_SAMPLE_PROJECT"])
         report = audit_project_consistency.audit(sample, mode="strict")
         self.assertEqual(report["status"], "fail", report)
         codes = {item["code"] for item in report["errors"] + report["warnings"]}

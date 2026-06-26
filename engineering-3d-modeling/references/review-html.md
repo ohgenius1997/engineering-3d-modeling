@@ -20,6 +20,7 @@ Review artifacts and cache files are derived from authoring truth. They are usef
 - Preview current generated geometry using STEP-derived or source-derived preview assets.
 - Optionally compare current and previous revisions.
 - Show/hide or isolate assembly parts from a canvas-attached part rail.
+- Render clean CAD-style preview edges by default. The review page does not expose a mesh wireframe/debug display mode, although the full preview mesh data remains available for shaded faces, annotation picking, and adapter-backed previews.
 - Display only explicit live-preview-bound parameter controls with bounds and units.
 - Let each annotation record carry editable text plus an optional snapped part, face, edge, vertex, or named feature ref.
 - Allow global annotations with no target.
@@ -117,6 +118,19 @@ Use stable ids for generated parts and named features where possible. Raw topolo
 
 If no explicit refs are declared, the review HTML can still snap annotations to preview mesh vertices, edges, and faces. Explicit refs are still preferred for important semantic targets such as screw holes, gasket grooves, mounting faces, airfoil sections, and connector openings.
 
+Annotation picking priority is:
+
+1. Explicit manifest refs.
+2. Visible preview vertices.
+3. Visible CAD edge candidates.
+4. Visible face interiors.
+
+CAD edge candidates are derived from preview mesh edge adjacency, feature/part boundaries, creases, boundaries, and view-dependent silhouette checks. Do not expose all triangulation edges as user-visible or preferred targets; internal triangle edges are implementation detail and should not attract annotation snaps.
+
+For large preview meshes, the template should budget edge adjacency by reviewable part or feature group rather than falling back globally. Small groups continue to build clean CAD edge candidates; oversized imported/reference groups may skip full adjacency and use a low-emphasis, screen-thinned direct preview-edge fallback to avoid browser memory spikes. This fallback is not a user-facing Mesh mode and its triangle edges must not become annotation edge targets. Annotation priority remains explicit refs, vertices, CAD edge candidates when available, then face interiors.
+
+Face picks store the exact clicked point, not the face centroid. The review page tests whether the pointer is inside the visible triangle projection, computes barycentric coordinates in screen space, and interpolates the 3D face vertices to write `target.snapped_point`. Edge picks use the nearest point on the visible CAD edge segment, interpolate the two 3D edge endpoints by `t`, and write that precise point. Vertex picks write the vertex coordinate directly.
+
 ## Local Save
 
 Static `file://` pages cannot overwrite project files directly. When the user needs direct local persistence, run the review UI through `scripts/serve_review.py`:
@@ -154,7 +168,14 @@ The save endpoint must validate both review documents before writing. `annotatio
         "part_id": "front_shell",
         "feature_id": "usb_cutout",
         "snapped_point": [12.0, -4.0, 8.5],
-        "normal": [0, -1, 0]
+        "normal": [0, -1, 0],
+        "pick": {
+          "kind": "face",
+          "face_id": "front_shell:face:usb_cutout_inner",
+          "face_index": 123,
+          "barycentric": [0.2, 0.5, 0.3],
+          "screen_point": [420, 260]
+        }
       },
       "camera": {},
       "status": "open"
@@ -164,6 +185,8 @@ The save endpoint must validate both review documents before writing. `annotatio
 ```
 
 `target` may be `null` for a global annotation. Annotations are review data and are normally cleared after the agent consumes them into spec, parameter, or source changes for the next model revision. `scripts/promote_model_project.py` treats any current annotation record as unconsumed review input and blocks `accepted_current` or `release_handoff` promotion until the record is consumed and cleared.
+
+The optional `target.pick` block is current-review helper data only. It may record face barycentric coordinates, an edge key plus interpolation parameter `t`, or a vertex index and screen point. Do not treat `pick` as stable topology truth across regeneration. Agents should rely on `snapped_point`, `feature_id`, `label`, `normal`, and nearby spec/source context when consuming annotation intent.
 
 ## Parameter Patches
 

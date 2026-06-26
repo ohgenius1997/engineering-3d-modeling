@@ -611,11 +611,6 @@
           <span class="muted" id="viewSubtitle"></span>
         </div>
         <div class="toolbar">
-          <div class="canvas-tools" aria-label="Edge display">
-            <button id="edgeModeCad" type="button" data-edge-mode="cad" data-i18n="edgeModeCad">CAD edges</button>
-            <button id="edgeModeMesh" type="button" data-edge-mode="mesh" data-i18n="edgeModeMesh">Mesh</button>
-            <button id="edgeModeOff" type="button" data-edge-mode="off" data-i18n="edgeModeOff">Off</button>
-          </div>
           <button id="resetView" data-i18n="resetView">Reset view</button>
         </div>
       </header>
@@ -646,14 +641,17 @@
       patch: {schema: "engineering-3d-modeling.parameter_patch.v1", patches: []},
       mesh: null,
       baseMesh: null,
+      renderCache: null,
       previewAdapter: null,
       previewAdapterError: "",
       previewAdapterGeneration: 0,
       activeAnnotationId: null,
       pickAnnotationId: null,
+      hoverTarget: null,
       partVisible: new Map(),
       soloPartId: null,
       renderedFaces: [],
+      renderedEdges: [],
       previewBaseBounds: null,
       viewBounds: {center: [0, 0, 0], radius: 20},
       rotX: -0.35,
@@ -663,8 +661,7 @@
       panY: 0,
       drag: null,
       lang: localStorage.getItem("eg3dReviewLang") || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en"),
-      activePanel: localStorage.getItem("eg3dReviewPanel") || "parameters",
-      edgeMode: localStorage.getItem("eg3dReviewEdgeMode") || "cad"
+      activePanel: localStorage.getItem("eg3dReviewPanel") || "parameters"
     };
 
     const $ = id => document.getElementById(id);
@@ -713,9 +710,7 @@
         previewAdapterFailed: "Formula preview adapter failed; showing baseline preview.",
         current: "Current",
         resetView: "Reset view",
-        edgeModeCad: "CAD edges",
-        edgeModeMesh: "Mesh",
-        edgeModeOff: "Off",
+        hoverTarget: "Hovering {type}: {label}",
         invalidJson: "Invalid JSON: {message}",
         kindUnits: "{kind} | {units}",
         noDeclaredParameters: "No preview-bound parameters",
@@ -768,9 +763,7 @@
         previewAdapterFailed: "公式预览适配器失败；正在显示基线预览。",
         current: "当前版本",
         resetView: "重置视图",
-        edgeModeCad: "CAD 边",
-        edgeModeMesh: "网格",
-        edgeModeOff: "关闭",
+        hoverTarget: "悬停 {type}：{label}",
         invalidJson: "JSON 无效：{message}",
         kindUnits: "{kind} | {units}",
         noDeclaredParameters: "没有绑定预览的参数",
@@ -806,7 +799,6 @@
       $("viewTitle").textContent = t("current");
       $("partScrollUp").setAttribute("aria-label", t("partScrollUp"));
       $("partScrollDown").setAttribute("aria-label", t("partScrollDown"));
-      updateEdgeModeButtons();
     }
 
     function setLanguage(lang) {
@@ -822,21 +814,6 @@
       localStorage.setItem("eg3dReviewPanel", state.activePanel);
       if (rerender) renderAll();
       else applyActivePanel();
-    }
-
-    function setEdgeMode(mode) {
-      state.edgeMode = ["cad", "mesh", "off"].includes(mode) ? mode : "cad";
-      localStorage.setItem("eg3dReviewEdgeMode", state.edgeMode);
-      updateEdgeModeButtons();
-      renderPreview();
-    }
-
-    function updateEdgeModeButtons() {
-      document.querySelectorAll("[data-edge-mode]").forEach(button => {
-        const active = button.dataset.edgeMode === state.edgeMode;
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-pressed", active ? "true" : "false");
-      });
     }
 
     function applyActivePanel() {
@@ -913,17 +890,20 @@
     async function loadPreviewMesh() {
       state.mesh = null;
       state.baseMesh = null;
+      state.renderCache = null;
+      state.hoverTarget = null;
       const path = state.manifest.preview && state.manifest.preview.mesh_json;
       if (!path) return;
       try {
         const response = await fetch(path, {cache: "no-store"});
         if (response.ok) {
           state.baseMesh = normalizePreviewMesh(await response.json());
-          state.mesh = state.baseMesh;
+          setActiveMesh(state.baseMesh);
         }
       } catch (_) {
         state.mesh = null;
         state.baseMesh = null;
+        state.renderCache = null;
       }
     }
 
@@ -1128,6 +1108,7 @@
 
     function refreshPreviewAfterParameterChange() {
       refreshAdapterPreview();
+      if (!state.previewAdapter) refreshRenderCache();
       renderPreview();
     }
 
@@ -1181,6 +1162,17 @@
       return null;
     }
 
+    function setActiveMesh(mesh) {
+      state.mesh = mesh || null;
+      refreshRenderCache();
+    }
+
+    function refreshRenderCache() {
+      state.renderCache = state.mesh ? buildRenderCache(state.mesh) : null;
+      state.hoverTarget = null;
+      return state.renderCache;
+    }
+
     function refreshAdapterPreview() {
       if (!state.previewAdapter) return false;
       const generation = ++state.previewAdapterGeneration;
@@ -1196,7 +1188,7 @@
         if (generation !== state.previewAdapterGeneration) return;
         const mesh = normalizePreviewMesh(data);
         if (!mesh) throw new Error("adapter returned invalid mesh");
-        state.mesh = mesh;
+        setActiveMesh(mesh);
         state.previewAdapterError = "";
       };
       try {
@@ -1205,7 +1197,7 @@
           result.then(applyMesh).catch(error => {
             if (generation === state.previewAdapterGeneration) {
               state.previewAdapterError = error && error.message ? error.message : String(error);
-              state.mesh = state.baseMesh;
+              setActiveMesh(state.baseMesh);
               renderPreview();
             }
           });
@@ -1215,7 +1207,7 @@
         return true;
       } catch (error) {
         state.previewAdapterError = error && error.message ? error.message : String(error);
-        state.mesh = state.baseMesh;
+        setActiveMesh(state.baseMesh);
         return false;
       }
     }
@@ -1332,6 +1324,7 @@
       if (picking && picking.target && picking.target.part_id && !isPartVisible(picking.target.part_id)) {
         state.pickAnnotationId = null;
       }
+      state.hoverTarget = null;
     }
 
     function scrollParts(direction) {
@@ -1455,6 +1448,7 @@
       if (!ann) return;
       state.activeAnnotationId = ann.id;
       state.pickAnnotationId = null;
+      state.hoverTarget = null;
       setActivePanel("notes", false);
       if (rerender) renderAnnotations();
       renderPreview();
@@ -1469,6 +1463,7 @@
       if (!ann) return;
       state.activeAnnotationId = ann.id;
       state.pickAnnotationId = ann.id;
+      state.hoverTarget = null;
       setActivePanel("notes", false);
       renderAnnotations();
       renderPreview();
@@ -1480,6 +1475,7 @@
       ann.target = null;
       state.activeAnnotationId = ann.id;
       if (state.pickAnnotationId === ann.id) state.pickAnnotationId = null;
+      state.hoverTarget = null;
       renderAnnotations();
       renderPreview();
     }
@@ -1493,12 +1489,14 @@
         part_id: ref.part_id || "",
         feature_id: ref.feature_id || "",
         label: ref.label || "",
-        snapped_point: ref.world_point || null,
-        normal: ref.normal || null
+        snapped_point: ref.snapped_point || ref.world_point || null,
+        normal: ref.normal || null,
+        pick: ref.pick || null
       };
       ann.camera = {rotX: state.rotX, rotY: state.rotY, zoom: state.zoom};
       state.activeAnnotationId = ann.id;
       state.pickAnnotationId = null;
+      state.hoverTarget = null;
       renderAnnotations();
       renderPreview();
     }
@@ -1685,6 +1683,19 @@
       return (a && b) ? a[0] * b[0] + a[1] * b[1] + a[2] * b[2] : 0;
     }
 
+    function add3(a, b) {
+      return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+    }
+
+    function scale3(point, scale) {
+      return [point[0] * scale, point[1] * scale, point[2] * scale];
+    }
+
+    function normalize3(point) {
+      const length = Math.hypot(point[0], point[1], point[2]);
+      return length > 1e-9 ? point.map(value => value / length) : null;
+    }
+
     function viewDirection() {
       const cy = Math.cos(state.rotY), sy = Math.sin(state.rotY);
       const cx = Math.cos(state.rotX), sx = Math.sin(state.rotX);
@@ -1701,35 +1712,148 @@
       return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
     }
 
-    function buildEdgeIndex(faceItems) {
+    const RENDER_CACHE_EDGE_FACE_LIMIT = 12000;
+    const DIRECT_PREVIEW_EDGE_MAX_SEGMENTS = 9000;
+
+    function buildRenderCache(mesh) {
+      if (!mesh || !Array.isArray(mesh.vertices) || !Array.isArray(mesh.faces)) return null;
+      const originalVertices = mesh.vertices.map(point => Array.isArray(point) ? point.map(Number) : null);
+      const baseBounds = computeBounds(originalVertices.filter(Boolean));
+      state.previewBaseBounds = baseBounds;
+      const worldVertices = originalVertices.map(point => point ? applyPreviewEffects(point, baseBounds) : null);
+      const bounds = computeBounds(worldVertices.filter(Boolean));
+      const faces = [];
       const edges = new Map();
-      for (const item of faceItems) {
-        if (!item.pts || item.pts.length < 2 || !item.worldPoints || item.worldPoints.length < 2) continue;
-        for (let i = 0; i < item.pts.length; i++) {
-          const next = (i + 1) % item.pts.length;
+      (mesh.faces || []).forEach((face, faceIndex) => {
+        const indices = face && face.indices ? face.indices : face;
+        if (!Array.isArray(indices) || indices.length < 3) return;
+        const originalPoints = indices.map(i => originalVertices[i]).filter(Boolean);
+        const worldPoints = indices.map(i => worldVertices[i]).filter(Boolean);
+        if (originalPoints.length < 3 || worldPoints.length < 3) return;
+        const normal = face.normal || faceNormal(originalPoints);
+        const displayNormal = faceNormal(worldPoints) || normal;
+        const item = {
+          face,
+          faceIndex,
+          indices,
+          originalPoints,
+          worldPoints,
+          worldPoint: face.world_point || centroid(worldPoints),
+          originalWorldPoint: face.world_point || centroid(originalPoints),
+          normal,
+          displayNormal,
+          partId: face.part_id || face.part || "",
+          featureId: face.feature_id || "",
+          triangles: triangulateFace(indices.length),
+        };
+        faces.push(item);
+      });
+      const edgeGroups = classifyEdgeCacheGroups(faces);
+      for (const group of edgeGroups.cached) {
+        addEdgesForFaces(group.faces, edges);
+      }
+      const edgeAdjacency = Array.from(edges.values()).map(edge => ({
+        ...edge,
+        partIds: Array.from(edge.partIds),
+        featureIds: Array.from(edge.featureIds),
+      }));
+      return {
+        mesh,
+        bounds,
+        normalizedFaces: faces,
+        faceWorldPoints: faces.map(face => face.worldPoints),
+        faceOriginalPoints: faces.map(face => face.originalPoints),
+        faceNormals: faces.map(face => face.normal),
+        edgeAdjacency,
+        cadEdgeCandidates: edgeAdjacency,
+        edgeCacheLimited: edgeGroups.limited.length > 0,
+        edgeCacheGroups: edgeGroups.summary,
+        limitedFaceIndices: new Set(edgeGroups.limited.flatMap(group => group.faces.map(face => face.faceIndex))),
+      };
+    }
+
+    function classifyEdgeCacheGroups(faces) {
+      const cached = [];
+      const limited = [];
+      for (const partGroup of groupedFaces(faces, face => face.partId || "__model__")) {
+        if (partGroup.faces.length <= RENDER_CACHE_EDGE_FACE_LIMIT) {
+          cached.push(partGroup);
+          continue;
+        }
+        const featureGroups = groupedFaces(partGroup.faces, face => face.featureId || "__featureless__");
+        if (featureGroups.length <= 1) {
+          limited.push(partGroup);
+          continue;
+        }
+        for (const featureGroup of featureGroups) {
+          if (featureGroup.faces.length <= RENDER_CACHE_EDGE_FACE_LIMIT) cached.push(featureGroup);
+          else limited.push(featureGroup);
+        }
+      }
+      return {
+        cached,
+        limited,
+        summary: {
+          cached: cached.map(group => ({key: group.key, face_count: group.faces.length})),
+          limited: limited.map(group => ({key: group.key, face_count: group.faces.length})),
+        },
+      };
+    }
+
+    function groupedFaces(faces, keyFn) {
+      const groups = new Map();
+      for (const face of faces) {
+        const key = keyFn(face);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(face);
+      }
+      return Array.from(groups, ([key, groupFaces]) => ({key, faces: groupFaces}));
+    }
+
+    function addEdgesForFaces(faces, edges) {
+      for (const item of faces) {
+        for (let i = 0; i < item.worldPoints.length; i++) {
+          const next = (i + 1) % item.worldPoints.length;
           const worldA = item.worldPoints[i];
           const worldB = item.worldPoints[next];
-          if (!worldA || !worldB) continue;
+          const originalA = item.originalPoints[i];
+          const originalB = item.originalPoints[next];
+          if (!worldA || !worldB || !originalA || !originalB) continue;
           const key = edgeKey(worldA, worldB);
           if (!edges.has(key)) {
             edges.set(key, {
               key,
-              screenA: item.pts[i],
-              screenB: item.pts[next],
+              vertexSlots: [i, next],
+              originalA,
+              originalB,
               worldA,
               worldB,
-              faces: []
+              faces: [],
+              faceIndices: [],
+              partIds: new Set(),
+              featureIds: new Set(),
             });
           }
-          edges.get(key).faces.push(item);
+          const edge = edges.get(key);
+          edge.faces.push(item);
+          edge.faceIndices.push(item.faceIndex);
+          if (item.partId) edge.partIds.add(item.partId);
+          if (item.featureId) edge.featureIds.add(item.featureId);
         }
       }
-      return Array.from(edges.values());
     }
 
-    function shouldDrawCadEdge(edge) {
+    function triangulateFace(count) {
+      const triangles = [];
+      for (let i = 1; i < count - 1; i++) triangles.push([0, i, i + 1]);
+      return triangles;
+    }
+
+    function shouldDrawCadEdge(edge, faceByIndex) {
       if (edge.faces.length <= 1) return true;
-      const faces = edge.faces.filter(face => face.displayNormal || face.normal);
+      const faces = edge.faceIndices
+        .map(faceIndex => faceByIndex.get(faceIndex))
+        .filter(face => face && (face.displayNormal || face.normal));
       if (faces.length < 2) return true;
       const view = viewDirection();
       for (let i = 0; i < faces.length; i++) {
@@ -1737,33 +1861,71 @@
           const a = faces[i];
           const b = faces[j];
           if (a.partId !== b.partId) return true;
-          if (a.featureId && b.featureId && a.featureId !== b.featureId) return true;
+          if ((a.featureId || b.featureId) && a.featureId !== b.featureId) return true;
           const normalA = a.displayNormal || a.normal;
           const normalB = b.displayNormal || b.normal;
           const normalDot = Math.max(-1, Math.min(1, dot(normalA, normalB)));
           if (normalDot < Math.cos(Math.PI / 6)) return true;
           const viewA = dot(normalA, view);
           const viewB = dot(normalB, view);
-          if (viewA * viewB < 0 && normalDot < 0.9998) return true;
+          if (viewA * viewB < 0) return true;
         }
       }
       return false;
     }
 
-    function drawMeshEdges(faceItems) {
-      if (state.edgeMode === "off") return;
-      const edges = buildEdgeIndex(faceItems);
+    function drawCadEdges(faceByIndex) {
+      const cache = state.renderCache;
+      const edges = cache ? cache.cadEdgeCandidates : [];
+      state.renderedEdges = [];
+      if (cache && cache.edgeCacheLimited) {
+        drawDirectPreviewEdges(Array.from(faceByIndex.values()).filter(face => cache.limitedFaceIndices.has(face.faceIndex)));
+      }
+      if (!edges.length) return;
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = state.edgeMode === "mesh" ? "rgba(37, 55, 77, .28)" : "rgba(37, 55, 77, .62)";
-      ctx.lineWidth = state.edgeMode === "mesh" ? 0.75 : 1.1;
+      ctx.strokeStyle = "rgba(37, 55, 77, .78)";
+      ctx.lineWidth = 1.25;
       for (const edge of edges) {
-        if (state.edgeMode === "cad" && !shouldDrawCadEdge(edge)) continue;
+        if (!edge.faceIndices.some(faceIndex => faceByIndex.has(faceIndex))) continue;
+        if (!shouldDrawCadEdge(edge, faceByIndex)) continue;
+        const screenA = projectedToScreen(centered(edge.worldA, cache.bounds.center), cache.bounds);
+        const screenB = projectedToScreen(centered(edge.worldB, cache.bounds.center), cache.bounds);
         ctx.beginPath();
-        ctx.moveTo(edge.screenA.x, edge.screenA.y);
-        ctx.lineTo(edge.screenB.x, edge.screenB.y);
+        ctx.moveTo(screenA.x, screenA.y);
+        ctx.lineTo(screenB.x, screenB.y);
         ctx.stroke();
+        state.renderedEdges.push({...edge, screenA, screenB});
+      }
+      ctx.restore();
+    }
+
+    function drawDirectPreviewEdges(faceItems) {
+      if (!faceItems.length) return;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(37, 55, 77, .16)";
+      ctx.lineWidth = 0.55;
+      const segmentCount = faceItems.reduce((sum, item) => sum + Math.max(0, (item.pts || []).length), 0);
+      const stride = Math.max(1, Math.ceil(segmentCount / DIRECT_PREVIEW_EDGE_MAX_SEGMENTS));
+      let segmentIndex = 0;
+      for (const item of faceItems) {
+        if (!item.pts || item.pts.length < 2) continue;
+        ctx.beginPath();
+        let drawing = false;
+        for (let i = 0; i < item.pts.length; i++) {
+          const a = item.pts[i];
+          const b = item.pts[(i + 1) % item.pts.length];
+          segmentIndex += 1;
+          if (segmentIndex % stride !== 0) continue;
+          if (Math.hypot(b.x - a.x, b.y - a.y) < 3) continue;
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          drawing = true;
+        }
+        if (drawing) ctx.stroke();
       }
       ctx.restore();
     }
@@ -1795,7 +1957,9 @@
       const adapterNotice = state.previewAdapterError ? ` ${t("previewAdapterFailed")}` : "";
       const suffix = notice ? ` ${notice}` : "";
       if (state.pickAnnotationId) {
-        return t("hudPickTarget", {index: annotationIndex(state.pickAnnotationId)}) + suffix + adapterNotice;
+        const hover = state.hoverTarget;
+        const hoverText = hover ? ` ${t("hoverTarget", {type: hover.entity_type || "target", label: hover.label || hover.id || "target"})}` : "";
+        return t("hudPickTarget", {index: annotationIndex(state.pickAnnotationId)}) + hoverText + suffix + adapterNotice;
       }
       if (state.activeAnnotationId) {
         return t("hudSelected", {index: annotationIndex(state.activeAnnotationId)}) + suffix + adapterNotice;
@@ -1883,33 +2047,27 @@
     }
 
     function drawMesh(mesh) {
-      const vertices = transformedVertices(mesh);
-      const bounds = computeBounds(vertices);
+      const cache = state.renderCache || refreshRenderCache();
+      if (!cache) {
+        drawRefsOnly();
+        return;
+      }
+      const bounds = cache.bounds;
       state.viewBounds = bounds;
       state.renderedFaces = [];
-      const faces = mesh.faces.map((face, faceIndex) => {
-        const indices = face.indices || face;
-        const worldPoints = indices.map(i => vertices[i]).filter(Boolean);
-        const pts = indices.map(i => projectedToScreen(centered(vertices[i], bounds.center), bounds));
-        const originalPoints = indices.map(i => mesh.vertices[i]).filter(Boolean);
+      state.renderedEdges = [];
+      const faces = cache.normalizedFaces.map(face => {
+        const pts = face.worldPoints.map(point => projectedToScreen(centered(point, bounds.center), bounds));
         const z = pts.reduce((sum, p) => sum + p.z, 0) / Math.max(1, pts.length);
         return {
-          face,
-          faceIndex,
-          indices,
+          ...face,
           pts,
           z,
-          worldPoint: face.world_point || centroid(originalPoints),
-          normal: face.normal || faceNormal(originalPoints),
-          partId: face.part_id || face.part || "",
-          featureId: face.feature_id || "",
-          originalPoints,
-          worldPoints,
-          displayNormal: faceNormal(worldPoints),
         };
       }).sort((a, b) => a.z - b.z);
 
       const visibleFaceItems = [];
+      const faceByIndex = new Map();
       for (const item of faces) {
         const partId = item.partId;
         if (!isPartVisible(partId)) continue;
@@ -1922,8 +2080,10 @@
         ctx.fill();
         visibleFaceItems.push(item);
         state.renderedFaces.push(item);
+        faceByIndex.set(item.faceIndex, item);
       }
-      drawMeshEdges(visibleFaceItems);
+      drawCadEdges(faceByIndex);
+      if (state.pickAnnotationId) drawHoverTarget();
 
       if (state.pickAnnotationId) drawRefMarkers(bounds);
       drawAnnotationMarkers(bounds);
@@ -1931,6 +2091,7 @@
 
     function drawRefsOnly() {
       state.renderedFaces = [];
+      state.renderedEdges = [];
       state.previewBaseBounds = null;
       const refs = visibleRefs().filter(r => Array.isArray(r.world_point));
       const annotationPoints = visibleAnnotationTargets().map(item => item.point);
@@ -1981,6 +2142,43 @@
       }
     }
 
+    function drawHoverTarget() {
+      const target = state.hoverTarget;
+      if (!target || !target.hover) return;
+      const hover = target.hover;
+      ctx.save();
+      if (hover.kind === "face" && Array.isArray(hover.pts) && hover.pts.length) {
+        ctx.beginPath();
+        ctx.moveTo(hover.pts[0].x, hover.pts[0].y);
+        for (const point of hover.pts.slice(1)) ctx.lineTo(point.x, point.y);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(255, 193, 7, .20)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(217, 72, 15, .72)";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+      if (hover.kind === "edge" && hover.screenA && hover.screenB) {
+        ctx.beginPath();
+        ctx.moveTo(hover.screenA.x, hover.screenA.y);
+        ctx.lineTo(hover.screenB.x, hover.screenB.y);
+        ctx.strokeStyle = "#d9480f";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+      const point = hover.point;
+      if (point) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, hover.kind === "vertex" ? 5.5 : 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = hover.kind === "ref" ? "#0b7f71" : "#d9480f";
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function roundRect(context, x, y, width, height, radius) {
       const r = Math.min(radius, width / 2, height / 2);
       context.moveTo(x + r, y);
@@ -2002,7 +2200,7 @@
         .filter(item => Array.isArray(item.point) && (!item.target.part_id || isPartVisible(item.target.part_id)));
     }
 
-    function nearestRef(x, y) {
+    function nearestRefTarget(x, y) {
       const refs = visibleRefs().filter(r => Array.isArray(r.world_point));
       if (!refs.length) return null;
       const bounds = state.viewBounds || computeBounds(refs.map(r => r.world_point));
@@ -2010,14 +2208,36 @@
       for (const ref of refs) {
         const point = projectedToScreen(centered(previewPoint(ref.world_point), bounds.center), bounds);
         const dist = Math.hypot(point.x - x, point.y - y);
-        if (!best || dist < best.dist) best = {ref, dist};
+        if (!best || dist < best.dist) best = {ref, dist, point};
       }
-      return best && best.dist < 24 ? best.ref : null;
+      if (!best || best.dist >= 24) return null;
+      const ref = best.ref;
+      return {
+        id: ref.id,
+        entity_type: ref.entity_type || "ref",
+        part_id: ref.part_id || "",
+        feature_id: ref.feature_id || "",
+        label: ref.label || ref.id || "ref",
+        world_point: ref.world_point,
+        snapped_point: ref.world_point,
+        normal: ref.normal || null,
+        hover: {kind: "ref", point: best.point},
+        pick: {
+          kind: "ref",
+          ref: ref.id,
+          screen_point: [x, y],
+        },
+      };
+    }
+
+    function nearestPickTarget(x, y) {
+      return nearestRefTarget(x, y) || nearestMeshTarget(x, y);
     }
 
     function nearestMeshTarget(x, y) {
       const faces = state.renderedFaces || [];
-      if (!faces.length) return null;
+      const edges = state.renderedEdges || [];
+      if (!faces.length && !edges.length) return null;
       let bestVertex = null;
       let bestEdge = null;
       let bestFace = null;
@@ -2030,19 +2250,18 @@
             bestVertex = {dist, item, vertexSlot: i};
           }
         }
-        for (let i = 0; i < item.pts.length; i++) {
-          const a = item.pts[i];
-          const b = item.pts[(i + 1) % item.pts.length];
-          const dist = distanceToSegment(x, y, a.x, a.y, b.x, b.y);
-          if (!bestEdge || dist < bestEdge.dist) {
-            bestEdge = {dist, item, edgeSlot: i};
-          }
+        if (!bestFace) {
+          const hit = faceHitAtPoint(item, x, y);
+          if (hit) bestFace = {item, ...hit};
         }
-        if (!bestFace && pointInPolygon(x, y, item.pts)) bestFace = item;
+      }
+      for (const edge of edges) {
+        const closest = closestPointOnSegment(x, y, edge.screenA.x, edge.screenA.y, edge.screenB.x, edge.screenB.y);
+        if (!bestEdge || closest.dist < bestEdge.dist) bestEdge = {edge, ...closest};
       }
       if (bestVertex && bestVertex.dist < 14) return meshVertexRef(bestVertex.item, bestVertex.vertexSlot);
-      if (bestEdge && bestEdge.dist < 10) return meshEdgeRef(bestEdge.item, bestEdge.edgeSlot);
-      if (bestFace) return meshFaceRef(bestFace);
+      if (bestEdge && bestEdge.dist < 10) return meshEdgeRef(bestEdge.edge, bestEdge.t, {x: bestEdge.x, y: bestEdge.y});
+      if (bestFace) return meshFaceRef(bestFace.item, bestFace);
       return null;
     }
 
@@ -2050,7 +2269,9 @@
       return item.featureId || item.partId || "model";
     }
 
-    function meshFaceRef(item) {
+    function meshFaceRef(item, hit) {
+      const snapped = interpolateBarycentric(hit.triangle.map(slot => item.worldPoints[slot]), hit.barycentric);
+      const screenPoint = {x: hit.x, y: hit.y};
       const label = `${meshBaseLabel(item)} face`;
       return {
         id: `mesh:${meshBaseLabel(item)}:face:${item.face.id || item.faceIndex}`,
@@ -2058,29 +2279,52 @@
         part_id: item.partId,
         feature_id: item.featureId,
         label,
-        world_point: item.worldPoint,
-        normal: item.normal,
+        world_point: snapped,
+        snapped_point: snapped,
+        normal: item.displayNormal || item.normal,
+        hover: {kind: "face", faceIndex: item.faceIndex, pts: item.pts, point: screenPoint},
+        pick: {
+          kind: "face",
+          face_id: item.face.id || "",
+          face_index: item.faceIndex,
+          barycentric: hit.barycentric,
+          screen_point: [hit.x, hit.y],
+        },
       };
     }
 
-    function meshEdgeRef(item, edgeSlot) {
-      const a = item.originalPoints[edgeSlot];
-      const b = item.originalPoints[(edgeSlot + 1) % item.originalPoints.length];
-      const midpoint = a && b ? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2] : item.worldPoint;
-      const label = `${meshBaseLabel(item)} edge`;
+    function meshEdgeRef(edge, tValue, screenPoint) {
+      const tClamped = Math.max(0, Math.min(1, tValue));
+      const snapped = [
+        edge.worldA[0] + (edge.worldB[0] - edge.worldA[0]) * tClamped,
+        edge.worldA[1] + (edge.worldB[1] - edge.worldA[1]) * tClamped,
+        edge.worldA[2] + (edge.worldB[2] - edge.worldA[2]) * tClamped,
+      ];
+      const face = edge.faces[0] || {};
+      const normal = averagedEdgeNormal(edge);
+      const label = `${meshBaseLabel(face)} edge`;
       return {
-        id: `mesh:${meshBaseLabel(item)}:face:${item.face.id || item.faceIndex}:edge:${edgeSlot}`,
+        id: `mesh:${meshBaseLabel(face)}:edge:${edge.key}`,
         entity_type: "edge",
-        part_id: item.partId,
-        feature_id: item.featureId,
+        part_id: edge.partIds[0] || face.partId || "",
+        feature_id: edge.featureIds[0] || face.featureId || "",
         label,
-        world_point: midpoint,
-        normal: item.normal,
+        world_point: snapped,
+        snapped_point: snapped,
+        normal,
+        hover: {kind: "edge", edgeKey: edge.key, screenA: edge.screenA, screenB: edge.screenB, point: screenPoint},
+        pick: {
+          kind: "edge",
+          edge_key: edge.key,
+          t: tClamped,
+          screen_point: [screenPoint.x, screenPoint.y],
+        },
       };
     }
 
     function meshVertexRef(item, vertexSlot) {
       const vertexIndex = item.indices[vertexSlot];
+      const point = item.pts[vertexSlot];
       const label = `${meshBaseLabel(item)} vertex`;
       return {
         id: `mesh:${meshBaseLabel(item)}:vertex:${vertexIndex}`,
@@ -2088,31 +2332,65 @@
         part_id: item.partId,
         feature_id: item.featureId,
         label,
-        world_point: item.originalPoints[vertexSlot] || item.worldPoint,
-        normal: item.normal,
+        world_point: item.worldPoints[vertexSlot] || item.worldPoint,
+        snapped_point: item.worldPoints[vertexSlot] || item.worldPoint,
+        normal: item.displayNormal || item.normal,
+        hover: {kind: "vertex", point},
+        pick: {
+          kind: "vertex",
+          vertex_index: vertexIndex,
+          screen_point: [point.x, point.y],
+        },
       };
     }
 
-    function pointInPolygon(x, y, pts) {
-      let inside = false;
-      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-        const xi = pts[i].x, yi = pts[i].y;
-        const xj = pts[j].x, yj = pts[j].y;
-        const intersects = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
-        if (intersects) inside = !inside;
+    function faceHitAtPoint(item, x, y) {
+      for (const triangle of item.triangles || []) {
+        const pts = triangle.map(slot => item.pts[slot]);
+        const barycentric = barycentric2d(x, y, pts[0], pts[1], pts[2]);
+        if (!barycentric) continue;
+        if (barycentric.every(value => value >= -1e-6 && value <= 1 + 1e-6)) {
+          return {triangle, barycentric, x, y};
+        }
       }
-      return inside;
+      return null;
     }
 
-    function distanceToSegment(px, py, ax, ay, bx, by) {
+    function barycentric2d(px, py, a, b, c) {
+      const v0x = b.x - a.x;
+      const v0y = b.y - a.y;
+      const v1x = c.x - a.x;
+      const v1y = c.y - a.y;
+      const v2x = px - a.x;
+      const v2y = py - a.y;
+      const den = v0x * v1y - v1x * v0y;
+      if (Math.abs(den) < 1e-9) return null;
+      const v = (v2x * v1y - v1x * v2y) / den;
+      const w = (v0x * v2y - v2x * v0y) / den;
+      const u = 1 - v - w;
+      return [u, v, w];
+    }
+
+    function interpolateBarycentric(points, weights) {
+      return points.reduce((acc, point, index) => add3(acc, scale3(point, weights[index])), [0, 0, 0]);
+    }
+
+    function averagedEdgeNormal(edge) {
+      const normals = edge.faces.map(face => face.displayNormal || face.normal).filter(Boolean);
+      if (!normals.length) return null;
+      const sum = normals.reduce((acc, normal) => add3(acc, normal), [0, 0, 0]);
+      return normalize3(sum);
+    }
+
+    function closestPointOnSegment(px, py, ax, ay, bx, by) {
       const dx = bx - ax;
       const dy = by - ay;
       const lengthSq = dx * dx + dy * dy;
-      if (lengthSq <= 1e-9) return Math.hypot(px - ax, py - ay);
+      if (lengthSq <= 1e-9) return {x: ax, y: ay, t: 0, dist: Math.hypot(px - ax, py - ay)};
       const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq));
       const x = ax + t * dx;
       const y = ay + t * dy;
-      return Math.hypot(px - x, py - y);
+      return {x, y, t, dist: Math.hypot(px - x, py - y)};
     }
 
     function nearestAnnotationMarker(x, y) {
@@ -2126,6 +2404,26 @@
         if (!best || dist < best.dist) best = {annotation: item.annotation, dist};
       }
       return best && best.dist < 26 ? best.annotation : null;
+    }
+
+    function pointerCanvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      return {
+        x: (event.clientX - rect.left) * scale,
+        y: (event.clientY - rect.top) * scale,
+      };
+    }
+
+    function updateHoverTarget(event) {
+      if (!state.pickAnnotationId || state.drag) return;
+      const point = pointerCanvasPoint(event);
+      const next = nearestPickTarget(point.x, point.y);
+      const previousKey = state.hoverTarget && (state.hoverTarget.id + JSON.stringify(state.hoverTarget.pick || {}));
+      const nextKey = next && (next.id + JSON.stringify(next.pick || {}));
+      if (previousKey === nextKey) return;
+      state.hoverTarget = next;
+      renderPreview();
     }
 
     async function saveReview() {
@@ -2172,9 +2470,6 @@
     document.querySelectorAll("[data-panel-tab]").forEach(button => {
       button.addEventListener("click", () => setActivePanel(button.dataset.panelTab));
     });
-    document.querySelectorAll("[data-edge-mode]").forEach(button => {
-      button.addEventListener("click", () => setEdgeMode(button.dataset.edgeMode));
-    });
     $("partScrollUp").addEventListener("click", () => scrollParts(-1));
     $("partScrollDown").addEventListener("click", () => scrollParts(1));
     $("parts").addEventListener("scroll", updatePartScrollButtons);
@@ -2186,14 +2481,12 @@
 
     canvas.addEventListener("contextmenu", event => event.preventDefault());
     canvas.addEventListener("pointerdown", event => {
-      const rect = canvas.getBoundingClientRect();
-      const scale = window.devicePixelRatio || 1;
-      const x = (event.clientX - rect.left) * scale;
-      const y = (event.clientY - rect.top) * scale;
+      const {x, y} = pointerCanvasPoint(event);
       if (state.pickAnnotationId && event.button === 0) {
-        const ref = nearestRef(x, y) || nearestMeshTarget(x, y);
-        if (ref) {
-          assignTargetToAnnotation(state.pickAnnotationId, ref);
+        const target = nearestPickTarget(x, y);
+        state.hoverTarget = target;
+        if (target) {
+          assignTargetToAnnotation(state.pickAnnotationId, target);
           return;
         }
         $("hud").textContent = t("targetMiss");
@@ -2206,11 +2499,16 @@
         }
       }
       const mode = event.button === 2 ? "pan" : "rotate";
+      state.hoverTarget = null;
       state.drag = {x: event.clientX, y: event.clientY, moved: false, mode};
       canvas.setPointerCapture(event.pointerId);
       event.preventDefault();
     });
     canvas.addEventListener("pointermove", event => {
+      if (state.pickAnnotationId && !state.drag) {
+        updateHoverTarget(event);
+        return;
+      }
       if (!state.drag) return;
       const dx = event.clientX - state.drag.x;
       const dy = event.clientY - state.drag.y;
@@ -2233,7 +2531,14 @@
     });
     canvas.addEventListener("pointercancel", () => {
       state.drag = null;
+      state.hoverTarget = null;
       canvas.classList.remove("panning");
+      renderPreview();
+    });
+    canvas.addEventListener("mouseleave", () => {
+      if (!state.hoverTarget) return;
+      state.hoverTarget = null;
+      renderPreview();
     });
     canvas.addEventListener("wheel", event => {
       event.preventDefault();
