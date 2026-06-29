@@ -19,6 +19,8 @@ V1 validation should distinguish:
 - work-state checks that report whether STEP is present and fresh without forcing routine preview iteration through lifecycle promotion.
 - export-level checks for fresh direct STEP output.
 - strict handoff package checks that compare authoring truth, review artifacts, STEP outputs, validation reports, and package manifests.
+- current-context summaries that let future sessions resume from `validation/current_context.json` instead of full history reads.
+- optional feature registry checks for complex models, treating `validation/feature_registry.json` as an index rather than a second CAD implementation.
 
 ## Minimum Project Checks
 
@@ -199,3 +201,42 @@ Prefer a machine-readable report plus a short human summary:
   }
 }
 ```
+
+## Current Context Summary
+
+`validation/current_context.json` is the first-read digest for continuing an existing project. Generate it with:
+
+```bash
+python3 engineering-3d-modeling/scripts/summarize_model_project.py /path/to/model-project --write-current-context
+```
+
+It should summarize project name/kind/units, source entrypoint, pending annotation and parameter patch counts, review mesh path/hash, STEP state and freshness, preview checkpoint availability, latest validation status/errors/warnings, key parameters, key layout facts, unresolved blockers/questions, and recommended next reads.
+
+The summary must report stale STEP when `outputs/step/manifest.json` says `stale: true` or when recorded freshness hashes no longer match current `spec/current.yaml`, `parameters.yaml`, `source/model.py`, or review mesh hashes. Updating the summary does not make STEP fresh; rerun `scripts/export_step.py` for that.
+
+## Feature Registry
+
+`validation/feature_registry.json` is optional but recommended for complex projects where review refs, source functions, parameters, and validation targets need a stable index.
+
+Suggested shape:
+
+```json
+{
+  "schema": "engineering-3d-modeling.feature_registry.v1",
+  "features": [
+    {
+      "feature_id": "usb_cutout",
+      "part_id": "body_shell",
+      "source_anchor": "build_usb_cutout",
+      "parameters": ["usb_cutout_width"],
+      "review_refs": ["body_shell:face:usb_cutout_inner"],
+      "bbox_mm": null,
+      "validation_targets": ["usb_cutout_aligns_to_usb2"],
+      "preview_adapter": null,
+      "warnings": []
+    }
+  ]
+}
+```
+
+The registry is an index and traceability aid. Do not duplicate full CAD construction logic in it, and do not require every simple project to generate a complete registry.

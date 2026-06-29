@@ -30,6 +30,7 @@ import audit_review_parameters
 import begin_model_iteration
 import iteration_utils
 import reset_review_state
+import summarize_model_project
 import sync_review_parameters
 import validate_model_project
 
@@ -393,6 +394,26 @@ def regenerate(
                 "step": "complete-iteration",
                 "status": "pass",
                 "metadata": completed,
+            }
+        )
+
+    try:
+        current_context = summarize_model_project.write_current_context(project)
+        report["written"].append("validation/current_context.json")
+        report["steps"].append(
+            {
+                "step": "write-current-context",
+                "status": "pass",
+                "step_stale": current_context.get("step", {}).get("stale"),
+                "validation_status": current_context.get("validation", {}).get("status"),
+            }
+        )
+    except Exception as exc:
+        report["steps"].append(
+            {
+                "step": "write-current-context",
+                "status": "warn",
+                "message": str(exc),
             }
         )
 

@@ -19,15 +19,15 @@
 - Domain: engineering 3D model generation
 - Profile: standard
 - Dynamic memory: agentmemory
-- Current phase: context-routing and model-project documentation optimization planned
+- Current phase: context-routing and model-project documentation optimization implemented on `dev-full`
 - Current branch: dev-full
-- Latest conclusion: `docs/context-and-routing-optimization.md` now captures the next product-level optimization: project `AGENTS.md` should wake `$engineering-3d-modeling` at a high level, detailed task routing should live in `references/context-routing.md`, existing projects should start from `validation/current_context.json` or `summarize_model_project.py`, `brief.md` should be a short confirmed human design summary with no open questions, and `spec/current.yaml` should carry structured authoring truth with coordinate systems, placements, features, formal constraints, decisions, and validation targets without becoming a second CAD implementation.
-- Next step: implement the optimization on `dev-full`, then decide separately which public-safe skill changes should be synced to `main`.
+- Latest conclusion: The skill now has `references/context-routing.md` for global routing, composable task tags, artifact boundaries, controlled modeling intent templates, and the review annotation clarity gate. New scaffolds keep project `AGENTS.md` high-level, generate a short `brief.md`, initialize structured `spec/current.yaml` sections, and create `validation/current_context.json`. `scripts/summarize_model_project.py` provides the existing-project continuation summary, and `regenerate_from_review.py` refreshes current context after successful review regeneration.
+- Next step: decide separately which public-safe skill changes should be synced to `main`; do not merge or push without explicit user request.
 - Blockers: no functional blocker.
-- Active risks: keep project-local `AGENTS.md` concise so it does not become a stale copy of skill internals; avoid turning controlled modeling intent templates into another source of duplicate truth.
+- Active risks: keep controlled modeling intent templates as intake guidance rather than duplicate CAD truth; when syncing installed copies later, avoid editing `/Users/bytedance/.codex/skills` or `/Users/bytedance/.agents/skills` without explicit permission.
 
 ## Handoff
-- Last completed: moved the context-routing/model-project documentation optimization plan from accidental `main` worktree changes onto `dev-full`.
-- In progress: commit the planning checkpoint on `dev-full`.
-- Validation done: documentation-only planning update; no code validation required yet.
+- Last completed: implemented the context-routing/model-project documentation optimization on `dev-full`.
+- In progress: review and decide public-safe sync scope for `main`.
+- Validation done: `python3 engineering-3d-modeling/scripts/check_environment.py --json`; `python3 engineering-3d-modeling/scripts/quick_validate.py engineering-3d-modeling`; `python3 -m unittest discover -s engineering-3d-modeling/tests` (rerun outside sandbox because localhost binding is required); `git diff --check`.
 - Known risks: `experiments/` remains an unrelated untracked directory and should not be touched by this workstream.

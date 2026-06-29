@@ -51,28 +51,20 @@ def copy_template_index(project: Path, force: bool) -> None:
 def brief_text(name: str, kind: str) -> str:
     return f"""# {name}
 
-## Goal
+## Purpose
 
-Create a maintainable engineering CAD {kind} project that preserves editable authoring truth, supports continuous preview iteration, and exports STEP directly when the visible result is satisfactory.
+Maintain an engineering CAD {kind} project with editable authoring truth, reviewable preview artifacts, and direct STEP export when the visible result is satisfactory.
 
-## Selected Direction
+## Current Direction
 
-Current direction is the active model. Rejected alternatives should not be developed in this project unless the user explicitly pivots.
+This scaffold represents one active model direction. Record confirmed design intent here in short human prose, and keep exact dimensions, placements, constraints, and validation targets in `spec/current.yaml` and `parameters.yaml`.
 
-## Inputs
+## Pointers
 
-Record drawings, photos, STEP references, datasheets, and legacy source under `inputs/`.
-
-## Assumptions
-
-- Units default to mm until changed.
-- build123d is the default backend.
-- This scaffold starts in `draft_review`; STEP can be exported directly with `scripts/export_step.py` when the preview is satisfactory.
-- HTML review comments are structured review data until converted into spec, parameter, or source changes.
-
-## Open Questions
-
-- Replace this section with model-specific unknowns.
+- Structured truth: `spec/current.yaml`, `parameters.yaml`
+- CAD source: `source/model.py`
+- Review surface: `review/index.html`, `review/manifest.json`
+- Continuation summary: `validation/current_context.json`
 """
 
 
@@ -80,38 +72,33 @@ def agents_text(name: str, kind: str) -> str:
     return f"""# AGENTS.md
 
 <INSTRUCTIONS>
-This is an engineering CAD model project created for the `engineering-3d-modeling` skill.
+This is an engineering CAD model project. Wake and use `$engineering-3d-modeling` for model creation, continuation, CAD edits, review annotations, parameter patches, preview regeneration, preview rollback, STEP export, handoff packaging, review server work, validation, and diagnostics in this directory.
 
-Use `$engineering-3d-modeling` for model creation, review, parameter changes, annotations, validation, and STEP export work in this directory.
+Start with `validation/current_context.json` when present, or run the installed skill's `scripts/summarize_model_project.py` before broad file reads. Do not default to full history, `previous/`, or handoff package reads.
 
 Project facts:
 - Active model: {name}
 - Kind: {kind}
 - Default backend: build123d
-- Authoring truth: `brief.md`, `spec/current.yaml`, `parameters.yaml`, `source/model.py`, and validation evidence
-- CAD exchange/delivery output: STEP under `outputs/step/`, exported directly with `scripts/export_step.py`
-- STEP state: `outputs/step/manifest.json`, where `exported` means fresh direct STEP and `stale: true` means authoring truth or preview changed after export
-- Review artifacts: `review/manifest.json`, `review/annotations.json`, `review/parameter_patch.json`, `review/index.html`, and `review/cache/`
-- Preview rollback: `checkpoints/preview_previous/` plus `validation/preview_revision.json`
+- Short human summary: `brief.md`
+- Structured authoring truth: `spec/current.yaml`, `parameters.yaml`, `source/model.py`, and validation evidence
+- Review artifacts: `review/index.html`, `review/manifest.json`, `review/annotations.json`, `review/parameter_patch.json`, `review/cache/`
+- Direct STEP output: `outputs/step/` plus `outputs/step/manifest.json`
+- Default one-step rollback: `checkpoints/preview_previous/` plus `validation/preview_revision.json`
 
 Rules:
-- Do not hand-roll a replacement review HTML. Use the installed skill's `assets/review-template/index.html` or rerun the installed skill's `scripts/init_model_project.py` to restore it.
-- Before running build123d generation, check dependencies with the installed skill's `scripts/check_environment.py --json` using the same Python that will execute `source/model.py`; if required packages are missing, rerun it with `--install` before continuing and request permission if pip, network, or environment writes are blocked.
-- Before any operation that will change the visible HTML preview model, save the current visible revision with `scripts/checkpoint_preview_revision.py --reason "...";` this is the default "go back one version" checkpoint.
-- Use `scripts/restore_preview_revision.py` to inspect that rollback and `scripts/restore_preview_revision.py --force` to restore it. Use `scripts/restore_previous.py --force` only to undo a whole coarse iteration from `previous/`.
-- Before regenerating from HTML review, prefer the installed skill's `scripts/regenerate_from_review.py` to apply `review/parameter_patch.json`, rebuild backend CAD, checkpoint the previous preview, sync and audit review parameters, clear consumed review state, and validate. If running the steps manually, checkpoint the preview first, apply the parameter patch, then convert user annotations into spec/source changes before clearing them.
-- `previous/` and `scripts/begin_model_iteration.py` remain optional coarse compatibility safety points for a whole modeling attempt, not the default meaning of "return to the previous version."
-- After editing `parameters.yaml`, sync only parameters with explicit live preview metadata into the HTML manifest with the installed skill's `scripts/sync_review_parameters.py`; then audit exposed parameters with `scripts/audit_review_parameters.py --mode strict` after geometry or preview behavior changes. Parameters without correct live preview bindings should stay in the agent-led regeneration workflow.
-- `review/annotations.json` is for user-authored review requests only. Do not store agent diagnostics, baseline analysis, or consumed notes there; use `validation/` or `brief.md` instead.
-- After consuming review annotations into a new model revision, clear current review state with the installed skill's `scripts/reset_review_state.py` so the next review starts empty.
-- For a single `part` project, keep `manifest.parts` to zero or one real part and use mesh `feature_id` for shroud, hub, vanes, holes, and other subregions. Multiple `part_id` groups are for assemblies.
-- Keep `review/index.html` present. Serve it through the installed skill's `scripts/serve_review.py --port 0` when the page needs to save annotations or parameter patches back to local files; report the printed URL because the operating system assigns the actual port.
-- Validate the model project with the installed skill's `scripts/validate_model_project.py` after structural or review-workflow changes. Use `--require-step` for forced delivery checks.
-- When the user is satisfied with the preview, export usable STEP directly with `scripts/export_step.py`. It fails while `review/parameter_patch.json` or `review/annotations.json` contains unconsumed review data.
-- If authoring truth or the visible preview changes after STEP export, treat `outputs/step/manifest.json` as stale and rerun `scripts/export_step.py` before using STEP as current output.
-- Generate a delivery/release zip only when requested with `scripts/create_handoff_package.py`; handoff is a package action, not a required daily lifecycle promotion.
-- `scripts/promote_model_project.py` remains a compatibility entry for old accepted/release workflows, but do not force routine modeling through accept/handoff promotion.
-- Do not add STL, 3MF, G-code, slicer, simulation, animation, or rendering deliverables unless the user explicitly leaves this skill's V1 scope.
+- Read the installed skill's `references/context-routing.md` for task tags, minimum reads, artifact boundaries, controlled modeling intent templates, and review annotation clarity gate. Do not copy that routing table into this project.
+- Keep `brief.md` short. Do not put open questions, long requirements, parameter tables, bbox data, validation evidence, history, or agent diagnostics there.
+- Treat `review/annotations.json` and `review/parameter_patch.json` as review input, not CAD truth. Do not store agent diagnostics or consumed notes in annotations.
+- If a review annotation is unclear about target, operation, reference, direction, dimensions, scope, preserve rules, or validation, ask or record an explicit low-risk assumption before modeling.
+- Do not hand-roll a replacement review HTML. Restore it from the installed skill template or rerun `scripts/init_model_project.py`.
+- Before build123d generation, run the installed skill's `scripts/check_environment.py --json` with the same Python that will execute `source/model.py`.
+- Before changing the visible HTML preview model, save a preview checkpoint. "Go back one version" means `scripts/restore_preview_revision.py`, not `previous/`.
+- Prefer `scripts/regenerate_from_review.py` for saved review patches. It checkpoints the preview, applies patches, rebuilds, syncs/audits review parameters, validates, marks STEP stale, clears consumed review state after success, and refreshes current context.
+- Expose only parameters with explicit trustworthy live-preview bindings. Use preview adapters for localized or topology-changing features; do not use generic morph as a fallback.
+- Export usable STEP directly with `scripts/export_step.py` when the preview is satisfactory. It must block pending review input and write a fresh non-stale `outputs/step/manifest.json`.
+- Create a handoff zip only when requested with `scripts/create_handoff_package.py`.
+- Keep V1 scope to lightweight engineering STEP CAD. Do not add STL, 3MF, G-code, slicer, simulation, animation, or rendering deliverables unless explicitly requested.
 </INSTRUCTIONS>
 """
 
@@ -126,11 +113,35 @@ project:
 model:
   selected_direction: current
   precision: engineering
+coordinate_system:
+  origin:
+    description: model origin, replace with project-specific convention
+    point_mm: [0, 0, 0]
+  axes:
+    x:
+      vector: [1, 0, 0]
+      positive_direction: define_for_project
+    y:
+      vector: [0, 1, 0]
+      positive_direction: define_for_project
+    z:
+      vector: [0, 0, 1]
+      positive_direction: define_for_project
 lifecycle:
   phase: draft_review
   status: in_progress
   note: STEP may be deferred while this project is in draft/review; export fresh STEP with scripts/export_step.py when the preview is satisfactory.
 inputs: []
+placements: {{}}
+features: []
+constraints:
+  formal: []
+  narrative: []
+decisions: []
+validation_targets:
+  dimensions: {{}}
+  clearances: {{}}
+  features: {{}}
 backend:
   default: build123d
   override: null
@@ -145,7 +156,28 @@ review:
   parameter_patch: review/parameter_patch.json
 validation:
   report: validation/report.json
+  current_context: validation/current_context.json
+  feature_registry: validation/feature_registry.json
+  layout_report: validation/layout_report.json
 """
+
+
+def current_context(name: str, kind: str) -> dict:
+    return {
+        "schema": "engineering-3d-modeling.current_context.v1",
+        "project": {"name": name, "kind": kind, "units": "mm"},
+        "status": "scaffolded",
+        "source": {"entrypoint": "source/model.py"},
+        "pending_review": {"annotations": 0, "parameter_patches": 0},
+        "review": {"mesh": None},
+        "step": {"state": "draft", "stale": False, "files": []},
+        "preview_checkpoint": {"available": False, "path": "checkpoints/preview_previous"},
+        "validation": {"status": "not_run", "errors": [], "warnings": []},
+        "key_parameters": [],
+        "layout_facts": {},
+        "unresolved": {"blockers": [], "questions": []},
+        "recommended_next_reads": ["spec/current.yaml", "parameters.yaml", "source/model.py"],
+    }
 
 
 def parameters_text() -> str:
@@ -373,6 +405,7 @@ def scaffold(project: Path, name: str, kind: str, per_part_step: bool, force: bo
         {"schema": "engineering-3d-modeling.parameter_patch.v1", "patches": []},
         force,
     )
+    write_json(project / "validation" / "current_context.json", current_context(name, kind), force)
     copy_template_index(project, force)
 
 
