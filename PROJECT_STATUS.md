@@ -19,15 +19,15 @@
 - Domain: engineering 3D model generation
 - Profile: standard
 - Dynamic memory: agentmemory
-- Current phase: product-level preview/export/handoff workflow refactor complete
+- Current phase: context-routing and model-project documentation optimization planned
 - Current branch: dev-full
-- Latest conclusion: New daily CAD workflow is implemented and documented: preview revision rollback is the default previous-version restore, STEP exports directly with fresh/stale manifest tracking, and handoff is an optional strict zip package. Legacy promotion remains as compatibility.
-- Next step: review/commit the refactor on `dev-full`; publishing to remote `main` should still be handled separately after checking branch policy.
+- Latest conclusion: `docs/context-and-routing-optimization.md` now captures the next product-level optimization: project `AGENTS.md` should wake `$engineering-3d-modeling` at a high level, detailed task routing should live in `references/context-routing.md`, existing projects should start from `validation/current_context.json` or `summarize_model_project.py`, `brief.md` should be a short confirmed human design summary with no open questions, and `spec/current.yaml` should carry structured authoring truth with coordinate systems, placements, features, formal constraints, decisions, and validation targets without becoming a second CAD implementation.
+- Next step: implement the optimization on `dev-full`, then decide separately which public-safe skill changes should be synced to `main`.
 - Blockers: no functional blocker.
-- Active risks: existing projects with legacy `accepted_current`/`release_handoff` phase metadata remain supported, but agents should avoid treating those states as mandatory daily flow; strict handoff package creation requires enough current preview/validation evidence to prove consistency.
+- Active risks: keep project-local `AGENTS.md` concise so it does not become a stale copy of skill internals; avoid turning controlled modeling intent templates into another source of duplicate truth.
 
 ## Handoff
-- Last completed: read AGENTS, PROJECT_STATUS, DECISIONS, SKILL, and relevant model-project/review/validation/script context for the workflow refactor.
-- In progress: complete.
-- Validation done: `check_environment.py --json` pass; `quick_validate.py engineering-3d-modeling` pass; full unittest pass with 48 tests and 1 environment-gated skip when run outside sandbox for local review-server binding; `git diff --check` pass; installed `.codex` and `.agents` skill copies synced and quick-validated.
-- Known risks: legacy promotion language remains only in compatibility sections and scripts.
+- Last completed: moved the context-routing/model-project documentation optimization plan from accidental `main` worktree changes onto `dev-full`.
+- In progress: commit the planning checkpoint on `dev-full`.
+- Validation done: documentation-only planning update; no code validation required yet.
+- Known risks: `experiments/` remains an unrelated untracked directory and should not be touched by this workstream.
