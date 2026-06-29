@@ -17,6 +17,8 @@ Use build123d as the default local CAD backend. Other backends are allowed only 
 
 Daily CAD modeling is a continuous loop: adjust, preview, then adjust again. Before any operation that will change the visible HTML preview model, save a lightweight preview revision checkpoint. "Go back one version" means restoring that preview checkpoint. `previous/` remains a coarse compatibility snapshot for undoing a whole modeling attempt.
 
+Use `references/context-routing.md` for detailed task tags, minimum reads, artifact boundaries, controlled modeling intent templates, and the review annotation clarity gate. Keep `SKILL.md` as the concise workflow router.
+
 ## First Moves
 
 1. Classify the request:
@@ -28,14 +30,15 @@ Daily CAD modeling is a continuous loop: adjust, preview, then adjust again. Bef
    - STL/OBJ/mesh: reference-only in V1.
 2. Create or continue exactly one active model or assembly direction. Alternative concepts may be discussed before selection, but only the selected direction becomes the active model project.
 3. For new projects, run `scripts/init_model_project.py`; do not hand-roll the scaffold or review HTML. The script creates `review/index.html` from the bundled template and a project-level `AGENTS.md` to keep future sessions on this skill.
-4. Before build123d generation or validation, run `scripts/check_environment.py --json` with the same Python runtime that will execute `source/model.py`. If build123d or PyYAML is missing, immediately rerun with `--install`; request permission if pip, network, or environment writes are blocked. Do not continue CAD generation while required dependencies are missing.
-5. Before any preview-changing edit, run `scripts/checkpoint_preview_revision.py --reason "..."` or use a workflow script that does it automatically. This saves `checkpoints/preview_previous/` and `validation/preview_revision.json`.
-6. When continuing from HTML review, prefer `scripts/regenerate_from_review.py`. It checkpoints the current visible preview, applies `review/parameter_patch.json`, rebuilds from `source/model.py`, syncs/audits preview sliders, validates the work/review state, marks existing STEP stale, and clears consumed review state after success. Treat `review/annotations.json` as user-authored requests only; convert consumed annotations into spec/parameter/source changes before passing `--clear-annotations`.
-7. Generate or modify build123d source from the spec and parameters.
-8. When the user is satisfied with the preview, export usable STEP directly with `scripts/export_step.py`. This fails if current review patches or annotations are unconsumed, regenerates STEP from current `spec/current.yaml`, `parameters.yaml`, and `source/model.py`, validates the export, and writes a fresh `outputs/step/manifest.json`.
-9. Create a delivery/release bundle only when requested with `scripts/create_handoff_package.py`. Handoff is an optional package action, not a required day-to-day state promotion.
-10. Validate build success, fresh STEP when requested, key dimensions, clearances, assembly relationships, review mesh sanity, part-vs-feature grouping, and strict package consistency where relevant. Use `scripts/validate_model_project.py --require-step` for forced delivery checks and `scripts/audit_project_consistency.py --mode strict` before package creation or release claims.
-11. Update review artifacts: HTML review surface when available, otherwise a snapshot or review note. Sync only explicit live-preview-bound parameters from `parameters.yaml` into `review/manifest.json` with `scripts/sync_review_parameters.py`, then audit exposed parameters with `scripts/audit_review_parameters.py` when geometry or preview behavior changed. Save parameter patches and annotation records as structured review data.
+4. For existing projects, start from project `AGENTS.md`, then `validation/current_context.json` or `scripts/summarize_model_project.py`. Use `references/context-routing.md` task tags to choose the exact next reads instead of loading history by default.
+5. Before build123d generation or validation, run `scripts/check_environment.py --json` with the same Python runtime that will execute `source/model.py`. If build123d or PyYAML is missing, immediately rerun with `--install`; request permission if pip, network, or environment writes are blocked. Do not continue CAD generation while required dependencies are missing.
+6. Before any preview-changing edit, run `scripts/checkpoint_preview_revision.py --reason "..."` or use a workflow script that does it automatically. This saves `checkpoints/preview_previous/` and `validation/preview_revision.json`.
+7. When continuing from HTML review, prefer `scripts/regenerate_from_review.py`. It checkpoints the current visible preview, applies `review/parameter_patch.json`, rebuilds from `source/model.py`, syncs/audits preview sliders, validates the work/review state, marks existing STEP stale, clears consumed review state after success, and refreshes current context where possible. Treat `review/annotations.json` as user-authored requests only; if target, operation, reference, direction, dimensions, scope, preserve rules, or validation are unclear, use the clarity gate in `references/context-routing.md` before modeling.
+8. Generate or modify build123d source from the spec and parameters.
+9. When the user is satisfied with the preview, export usable STEP directly with `scripts/export_step.py`. This fails if current review patches or annotations are unconsumed, regenerates STEP from current `spec/current.yaml`, `parameters.yaml`, and `source/model.py`, validates the export, and writes a fresh `outputs/step/manifest.json`.
+10. Create a delivery/release bundle only when requested with `scripts/create_handoff_package.py`. Handoff is an optional package action, not a required day-to-day state promotion.
+11. Validate build success, fresh STEP when requested, key dimensions, clearances, assembly relationships, review mesh sanity, part-vs-feature grouping, and strict package consistency where relevant. Use `scripts/validate_model_project.py --require-step` for forced delivery checks and `scripts/audit_project_consistency.py --mode strict` before package creation or release claims.
+12. Update review artifacts: HTML review surface when available, otherwise a snapshot or review note. Sync only explicit live-preview-bound parameters from `parameters.yaml` into `review/manifest.json` with `scripts/sync_review_parameters.py`, then audit exposed parameters with `scripts/audit_review_parameters.py` when geometry or preview behavior changed. Save parameter patches and annotation records as structured review data.
 
 ## Project Shape
 
@@ -87,6 +90,7 @@ For single-part projects, use one manifest part at most; group subregions with `
 
 Read only the references needed for the task:
 
+- `references/context-routing.md`: global context routing, composable task tags, artifact boundaries, controlled intent templates, and review annotation clarity gate.
 - `references/model-project.md`: project structure, artifact roles, current/previous revision handling, completion standard.
 - `references/inputs.md`: precision rules for natural language, drawings, photos, STEP/STP, meshes, and existing scripts.
 - `references/build123d-patterns.md`: source structure and STEP export conventions.
@@ -112,6 +116,7 @@ Read only the references needed for the task:
 - `scripts/restore_previous.py`: restore the whole current model-project snapshot from `previous/`; use for undoing a whole attempt, not the default "go back one version" action. Default output is dry-run and `--force` is required to write.
 - `scripts/reset_review_state.py`: clear current annotations and parameter patches after the agent consumes them into the next model revision.
 - `scripts/roll_revision.py`: compatibility alias for copying the current state into `previous/`; prefer `begin_model_iteration.py` for new iteration work.
+- `scripts/summarize_model_project.py`: produce a compact continuation summary and optionally write `validation/current_context.json`.
 - `scripts/sync_review_parameters.py`: sync only explicit live-preview-bound `parameters.yaml` entries into `review/manifest.json` for HTML sliders; command-line use audits synced parameters by default.
 - `scripts/validate_model_project.py`: check required files, bundled JSON schemas, review data, patch domain rules, STEP freshness when STEP is required, review parameter audit, explicit consistency audit when requested, parameter-to-geometry smoke when requested, and forbidden downstream outputs. `--require-step` forces a delivery check.
 - `scripts/serve_review.py`: serve one model project's review UI and safely write `review/annotations.json` plus `review/parameter_patch.json` only after schema and parameter-domain validation passes. Use `--port 0` when multiple review projects may run at once; the script prints the actual assigned URL.

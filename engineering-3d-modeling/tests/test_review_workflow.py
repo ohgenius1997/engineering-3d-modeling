@@ -33,6 +33,7 @@ import restore_preview_revision
 import restore_previous
 import roll_revision
 import serve_review
+import summarize_model_project
 import sync_review_parameters
 import validate_model_project
 
@@ -162,6 +163,122 @@ class ReviewWorkflowTests(unittest.TestCase):
                 }
             ],
         }
+
+    def test_scaffold_agents_wakes_skill_without_copying_full_routing_table(self) -> None:
+        agents = (self.project / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("$engineering-3d-modeling", agents)
+        self.assertIn("validation/current_context.json", agents)
+        self.assertIn("references/context-routing.md", agents)
+        self.assertIn("scripts/summarize_model_project.py", agents)
+        self.assertIn("review annotation clarity gate", agents)
+        self.assertNotIn("new_model_project", agents)
+        self.assertNotIn("preview_vs_cad_mismatch", agents)
+
+    def test_scaffold_brief_is_short_and_has_no_open_questions(self) -> None:
+        brief = (self.project / "brief.md").read_text(encoding="utf-8")
+        self.assertNotIn("Open Questions", brief)
+        self.assertNotIn("## Assumptions", brief)
+        self.assertLessEqual(len([line for line in brief.splitlines() if line.strip()]), 16)
+        self.assertIn("spec/current.yaml", brief)
+
+    def test_scaffold_spec_has_structured_authoring_sections(self) -> None:
+        yaml = load_yaml()
+        spec = yaml.safe_load((self.project / "spec" / "current.yaml").read_text(encoding="utf-8"))
+        for key in [
+            "coordinate_system",
+            "placements",
+            "features",
+            "constraints",
+            "decisions",
+            "validation_targets",
+        ]:
+            self.assertIn(key, spec)
+        self.assertIn("current_context", spec["validation"])
+        self.assertIn("feature_registry", spec["validation"])
+        self.assertIn("layout_report", spec["validation"])
+
+    def test_context_routing_reference_contains_tags_artifacts_and_clarity_gate(self) -> None:
+        routing = (SKILL_ROOT / "references" / "context-routing.md").read_text(encoding="utf-8")
+        for tag in [
+            "new_model_project",
+            "continue_existing_project",
+            "consume_review_feedback",
+            "update_review_preview",
+            "parameter_preview_or_adapter",
+            "geometry_feature_change",
+            "assembly_alignment",
+            "step_export",
+            "handoff_package",
+            "preview_rollback",
+            "preview_vs_cad_mismatch",
+            "validation_failure",
+        ]:
+            self.assertIn(f"`{tag}`", routing)
+        self.assertIn("## Artifact Directory", routing)
+        self.assertIn("validation/feature_registry.json", routing)
+        self.assertIn("## Review Annotation Clarity Gate", routing)
+        for dimension in ["target", "operation", "reference", "direction", "dimensions", "scope", "preserve", "validation"]:
+            self.assertIn(dimension, routing)
+
+    def test_summarize_model_project_human_json_and_current_context_outputs(self) -> None:
+        annotations = {
+            "schema": "engineering-3d-modeling.annotations.v1",
+            "annotations": [
+                {
+                    "id": "ann-001",
+                    "created_at": "2026-06-29T00:00:00Z",
+                    "text": "Change selected hole to 3 mm.",
+                    "target": None,
+                    "status": "open",
+                }
+            ],
+        }
+        (self.project / "review" / "annotations.json").write_text(json.dumps(annotations, indent=2) + "\n", encoding="utf-8")
+        self.write_patch(self.patch_doc("body_length", 55.0))
+
+        context = summarize_model_project.summarize(self.project)
+        self.assertEqual(context["project"]["name"], "Demo Model")
+        self.assertEqual(context["pending_review"]["annotations"], 1)
+        self.assertEqual(context["pending_review"]["parameter_patches"], 1)
+        self.assertIn("review/annotations.json", context["recommended_next_reads"])
+        self.assertIn("review/parameter_patch.json", context["recommended_next_reads"])
+
+        human = summarize_model_project.human_summary(context)
+        self.assertIn("Pending review: 1 annotation(s), 1 parameter patch(es)", human)
+
+        written = summarize_model_project.write_current_context(self.project)
+        saved = json.loads((self.project / "validation" / "current_context.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["schema"], "engineering-3d-modeling.current_context.v1")
+        self.assertEqual(saved["pending_review"], written["pending_review"])
+
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_model_project.py"), str(self.project), "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        cli_context = json.loads(result.stdout)
+        self.assertEqual(cli_context["pending_review"]["annotations"], 1)
+
+    def test_summarize_model_project_reports_step_freshness_and_stale_hashes(self) -> None:
+        self.write_exporting_fake_model_source()
+        exported = export_step.export_step(self.project, python_executable=sys.executable)
+        self.assertEqual(exported["status"], "pass", exported)
+
+        fresh = summarize_model_project.summarize(self.project)
+        self.assertEqual(fresh["step"]["state"], "exported")
+        self.assertFalse(fresh["step"]["stale"], fresh["step"])
+
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["body_length"]["value"] = 61.0
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+
+        stale = summarize_model_project.summarize(self.project)
+        self.assertTrue(stale["step"]["stale"], stale["step"])
+        self.assertIn("parameters_hash", stale["step"]["freshness_mismatches"])
 
     def write_fake_model_source(self) -> None:
         (self.project / "source" / "model.py").write_text(

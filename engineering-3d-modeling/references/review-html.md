@@ -15,6 +15,8 @@ Annotations are user-authored review input. Do not store agent diagnostics, base
 
 Review artifacts and cache files are derived from authoring truth. They are useful for feedback, live preview, and annotations, but they do not replace `spec/current.yaml`, `parameters.yaml`, source/formula modules, validation evidence, or direct STEP export.
 
+Before converting annotations into CAD changes, apply the review annotation clarity gate in `references/context-routing.md`. If target, operation, reference, direction, dimensions, scope, preserve rules, or validation are unclear and multiple interpretations are reasonable, ask before modeling. If exactly one low-risk interpretation is used, record that assumption in `spec/current.yaml` decisions/constraints or `validation/current_context.json`.
+
 ## Allowed V1 Features
 
 - Preview current generated geometry using STEP-derived or source-derived preview assets.
@@ -218,6 +220,8 @@ python3 engineering-3d-modeling/scripts/regenerate_from_review.py /path/to/model
 ```
 
 It checkpoints the previous visible preview into `checkpoints/preview_previous/`, records `validation/preview_revision.json`, applies saved parameter patches, runs `source/model.py`, syncs preview-bound parameters into the manifest, writes `validation/report.json`, marks any existing STEP manifest stale, and clears consumed review state after validation succeeds. If you also want a coarse whole-attempt rollback point in `previous/`, pass `--start-new-iteration`.
+
+After successful regeneration, the workflow should refresh `validation/current_context.json` with `scripts/summarize_model_project.py --write-current-context` or let `scripts/regenerate_from_review.py` do it. This keeps pending review counts, STEP stale state, preview checkpoint state, validation status, and recommended next reads current for the next session.
 
 "Go back one version" means:
 
