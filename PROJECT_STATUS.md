@@ -19,15 +19,15 @@
 - Domain: engineering 3D model generation
 - Profile: standard
 - Dynamic memory: agentmemory
-- Current phase: P2 caller-centered optimization proposal documented on `dev-full`
+- Current phase: P2 caller-centered current-context control plane plus risk/ready-state guardrails implemented on `dev-full`
 - Current branch: dev-full
-- Latest conclusion: P0/P1 implementation remains complete on `dev-full`; the next optimization direction is documented in `docs/caller-centered-skill-optimization-plan.md`, focused on making `validation/current_context.json` the caller-facing control plane for low-token routing, parameter/review state, ready states, risk escalation, and gate planning.
-- Next step: start a new implementation session that first audits the current repo against `docs/caller-centered-skill-optimization-plan.md`, adjusts the plan where the existing code suggests a better path, then implements incrementally; decide separately which public-safe skill changes should be synced to `main`, and do not merge or push without explicit user request.
+- Latest conclusion: `validation/current_context.json` now acts as the existing-project caller control plane with `routing.next_action`, context cost, minimum reads, trust, ready states, `parameter_state`, `review_state`, gate plan, blockers, assumptions, and risk escalation. Small safe parameter patches avoid spec/source reads; Chinese/snake_case high-risk annotations or parameter patches escalate to clarification or larger context; `draft_review_ready` now requires both authoring readiness and current review preview; draft-review projects no longer recommend STEP export just because STEP is missing.
+- Next step: decide which public-safe changes should be synced to `main` or installed skill copies; do not merge, push, or edit `/Users/bytedance/.codex/skills` or `/Users/bytedance/.agents/skills` without explicit user request.
 - Blockers: no functional blocker.
-- Active risks: legacy `promote_model_project.py` still exists for old accepted/release projects and should remain out of the default path; when syncing installed copies later, avoid editing `/Users/bytedance/.codex/skills` or `/Users/bytedance/.agents/skills` without explicit permission.
+- Active risks: source-anchor/feature-registry automation was intentionally deferred; `summarize_model_project.py` now owns the first route-planning implementation and may merit extraction only if external intent-aware routing is added later. Full unittest discovery binds a local review server and may need unsandboxed execution in restricted environments. High-risk term coverage is heuristic and should be expanded from real review data over time.
 
 ## Handoff
-- Last completed: documented the caller-centered P2 optimization proposal for a future implementation session.
+- Last completed: implemented caller-centered P2 routing/projection/gate-plan support, then tightened high-risk recognition, ready-state semantics, and next-action documentation.
 - In progress: no active implementation.
-- Validation done: `check_environment.py --json`, `quick_validate.py engineering-3d-modeling`, full unittest discovery, and `git diff --check` passed for P0/P1 safeguards.
-- Known risks: `experiments/` remains an unrelated untracked directory and should not be touched by this workstream.
+- Validation done: `python3 engineering-3d-modeling/scripts/check_environment.py --json`, `python3 engineering-3d-modeling/scripts/quick_validate.py engineering-3d-modeling`, `python3 -m unittest discover -s engineering-3d-modeling/tests` (70 tests passed after unsandboxed rerun for local socket bind), and `git diff --check`.
+- Known risks: `experiments/` remains unrelated and should not be touched by this workstream; installed skill copies are not synced.

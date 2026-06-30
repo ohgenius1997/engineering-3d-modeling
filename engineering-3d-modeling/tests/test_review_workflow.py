@@ -33,6 +33,7 @@ import regenerate_from_review
 import restore_preview_revision
 import restore_previous
 import roll_revision
+import review_validation
 import serve_review
 import summarize_model_project
 import sync_review_parameters
@@ -298,6 +299,138 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         cli_context = json.loads(result.stdout)
         self.assertEqual(cli_context["pending_review"]["annotations"], 1)
+
+    def test_current_context_control_plane_keeps_current_project_tiny(self) -> None:
+        self.write_mesh_cache()
+
+        context = summarize_model_project.summarize(self.project)
+
+        self.assertEqual(context["routing"]["next_action"], "inspect")
+        self.assertEqual(context["routing"]["context_cost"], "tiny")
+        self.assertEqual(context["routing"]["minimum_reads"], ["validation/current_context.json"])
+        self.assertNotIn("step_export", context["routing"]["recommended_tags"])
+        self.assertEqual(context["trust"]["step"], "not_exported")
+        self.assertTrue(context["ready_states"]["draft_review_ready"])
+        self.assertFalse(context["ready_states"]["export_ready"])
+        skipped = {item["gate"]: item["reason"] for item in context["gate_plan"]["skipped"]}
+        self.assertIn("step_export", skipped)
+        self.assertIn("user did not request STEP", skipped["step_export"])
+
+    def test_current_context_parameter_patch_uses_small_context_projection(self) -> None:
+        self.write_mesh_cache()
+        self.write_patch(self.patch_doc("body_length", 55.0))
+
+        context = summarize_model_project.summarize(self.project)
+
+        self.assertEqual(context["routing"]["next_action"], "apply_parameter_patch")
+        self.assertEqual(context["routing"]["context_cost"], "small")
+        self.assertIn("review/parameter_patch.json", context["routing"]["minimum_reads"])
+        self.assertIn("parameters.yaml", context["routing"]["minimum_reads"])
+        self.assertNotIn("spec/current.yaml", context["routing"]["minimum_reads"])
+        self.assertNotIn("source/model.py", context["routing"]["minimum_reads"])
+        body_length = {item["id"]: item for item in context["parameter_state"]}["body_length"]
+        self.assertEqual(body_length["status"], "patch_pending")
+        self.assertEqual(body_length["truth_value"], 40.0)
+        self.assertEqual(body_length["pending_patch_value"], 55.0)
+        self.assertEqual(context["review_state"]["pending_input"]["parameter_patches"], 1)
+        self.assertIn("apply_parameter_patch", context["gate_plan"]["required"])
+
+    def test_current_context_high_risk_annotation_escalates_to_clarity_route(self) -> None:
+        annotations = {
+            "schema": "engineering-3d-modeling.annotations.v1",
+            "annotations": [
+                {
+                    "id": "ann-hole",
+                    "created_at": "2026-06-29T00:00:00Z",
+                    "text": "Move this hole a bit.",
+                    "target": None,
+                    "status": "open",
+                }
+            ],
+        }
+        (self.project / "review" / "annotations.json").write_text(json.dumps(annotations, indent=2) + "\n", encoding="utf-8")
+
+        context = summarize_model_project.summarize(self.project)
+
+        self.assertEqual(context["routing"]["next_action"], "clarify_review_annotation")
+        self.assertEqual(context["routing"]["context_cost"], "large")
+        self.assertIn("high-risk annotation", " ".join(context["routing"]["escalation_reasons"]))
+        self.assertIn("review_clarity", context["gate_plan"]["required"])
+        self.assertIn("review/annotations.json", context["routing"]["minimum_reads"])
+        self.assertIn("review/manifest.json", context["routing"]["minimum_reads"])
+        self.assertEqual(context["review_state"]["annotation_clarity"]["status"], "fail")
+        self.assertGreater(context["review_state"]["annotation_clarity"]["blocking_count"], 0)
+        self.assertIn("high-risk", " ".join(context["blockers"]))
+
+    def test_current_context_chinese_high_risk_annotation_escalates(self) -> None:
+        for text, expected_term in [
+            ("给这个孔加 M3 螺纹", "孔"),
+            ("移动电池间隙", "电池"),
+            ("调整卡扣槽", "卡扣"),
+        ]:
+            with self.subTest(text=text):
+                annotations = {
+                    "schema": "engineering-3d-modeling.annotations.v1",
+                    "annotations": [
+                        {
+                            "id": "ann-cn",
+                            "created_at": "2026-06-30T00:00:00Z",
+                            "text": text,
+                            "target": None,
+                            "status": "open",
+                        }
+                    ],
+                }
+                (self.project / "review" / "annotations.json").write_text(
+                    json.dumps(annotations, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+
+                context = summarize_model_project.summarize(self.project)
+
+                self.assertEqual(context["routing"]["next_action"], "clarify_review_annotation")
+                self.assertEqual(context["routing"]["context_cost"], "large")
+                item = context["review_state"]["annotation_clarity"]["items"][0]
+                self.assertTrue(item["high_risk"])
+                self.assertIn(expected_term, item["risk_terms"])
+
+    def test_current_context_snake_case_parameter_patch_escalates_context(self) -> None:
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["pcb_mount_gap"] = {
+            "value": 2.0,
+            "unit": "mm",
+            "validation": {"affects_geometry": True},
+        }
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+        self.write_patch(self.patch_doc("pcb_mount_gap", 3.0))
+
+        context = summarize_model_project.summarize(self.project)
+
+        self.assertEqual(context["routing"]["next_action"], "apply_parameter_patch")
+        self.assertEqual(context["routing"]["context_cost"], "medium")
+        self.assertIn("high-risk parameter", " ".join(context["routing"]["escalation_reasons"]))
+        self.assertIn("spec/current.yaml", context["routing"]["minimum_reads"])
+        self.assertIn("source/model.py", context["routing"]["minimum_reads"])
+        self.assertIn("coverage_audit", context["gate_plan"]["required"])
+
+    def test_scaffold_current_context_exposes_draft_review_without_step_export(self) -> None:
+        context = json.loads((self.project / "validation" / "current_context.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(context["routing"]["next_action"], "update_review_preview")
+        self.assertEqual(context["routing"]["context_cost"], "medium")
+        self.assertTrue(context["ready_states"]["authoring_ready"])
+        self.assertFalse(context["ready_states"]["review_preview_ready"])
+        self.assertFalse(context["ready_states"]["draft_review_ready"])
+        self.assertFalse(context["ready_states"]["export_ready"])
+        self.assertEqual(context["trust"]["step"], "not_exported")
+        self.assertIn("step_export", {item["gate"] for item in context["gate_plan"]["skipped"]})
+
+    def test_review_validation_high_risk_terms_cover_identifiers_and_chinese(self) -> None:
+        self.assertIn("hole", review_validation.high_risk_terms("hole_diameter"))
+        self.assertIn("pcb", review_validation.high_risk_terms("pcb_mount_gap"))
+        self.assertIn("孔", review_validation.high_risk_terms("给这个孔加 M3 螺纹"))
 
     def test_spec_coverage_audit_reports_missing_feature_and_unused_geometry_parameter(self) -> None:
         yaml = load_yaml()

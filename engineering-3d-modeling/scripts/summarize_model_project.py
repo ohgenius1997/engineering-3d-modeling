@@ -19,6 +19,26 @@ from typing import Any
 
 
 SCHEMA = "engineering-3d-modeling.current_context.v1"
+HIGH_RISK_RE = re.compile(
+    r"\b("
+    r"hole|holes|slot|slots|cutout|cutouts|port|ports|opening|openings|"
+    r"mount|mounts|boss|bosses|standoff|standoffs|thread|threads|"
+    r"clearance|clearances|gap|gaps|fit|collision|interference|"
+    r"axis|axes|align|alignment|placement|origin|coordinate|direction|"
+    r"pcb|battery|connector|motor|bearing|gear|fan|impeller|"
+    r"wall[_ -]?thickness|rib|ribs|chamfer|chamfers|fillet|fillets"
+    r")\b",
+    re.IGNORECASE,
+)
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    import review_validation
+except Exception:  # pragma: no cover - summary should degrade if imported standalone
+    review_validation = None  # type: ignore[assignment]
 
 
 def utc_now() -> str:
@@ -132,6 +152,61 @@ def parameter_summaries(text: str, limit: int = 8) -> list[dict[str, Any]]:
     if current:
         entries.append(current)
     return entries[:limit]
+
+
+def parameter_details(text: str) -> list[dict[str, Any]]:
+    lines = text.splitlines()
+    parameters_indent: int | None = None
+    entries: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    current_indent: int | None = None
+    section: str | None = None
+
+    def finish() -> None:
+        if current:
+            entries.append(current)
+
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        match = re.match(r"^(\s*)([A-Za-z0-9_.-]+):(?:\s*(.*))?$", line)
+        if not match:
+            continue
+        indent = len(match.group(1))
+        key = match.group(2)
+        value = match.group(3) or ""
+        if parameters_indent is None:
+            if indent == 0 and key == "parameters":
+                parameters_indent = indent
+            continue
+        if indent <= parameters_indent and key != "parameters":
+            break
+        if indent == parameters_indent + 2:
+            finish()
+            current = {"id": key}
+            current_indent = indent
+            section = None
+            if value:
+                current["value"] = parse_scalar(value)
+        elif current is not None and current_indent is not None and indent == current_indent + 2:
+            if key in {"value", "unit", "role"}:
+                current[key] = parse_scalar(value)
+                section = None
+            elif key in {"ui", "validation", "preview"}:
+                current[key] = {}
+                section = key
+            else:
+                section = None
+        elif (
+            current is not None
+            and current_indent is not None
+            and section is not None
+            and indent == current_indent + 4
+            and isinstance(current.get(section), dict)
+        ):
+            current[section][key] = parse_scalar(value)
+    finish()
+    return entries
 
 
 def pending_count(project: Path, rel_path: str, key: str) -> int:
@@ -265,6 +340,182 @@ def coverage_summary(project: Path) -> dict[str, Any]:
     }
 
 
+def open_annotations(project: Path) -> list[dict[str, Any]]:
+    data = load_json(project / "review" / "annotations.json", {"annotations": []})
+    annotations = data.get("annotations")
+    if not isinstance(annotations, list):
+        return []
+    return [
+        item
+        for item in annotations
+        if isinstance(item, dict) and (not item.get("status") or item.get("status") == "open")
+    ]
+
+
+def annotation_clarity_summary(project: Path) -> dict[str, Any]:
+    annotations_doc = load_json(project / "review" / "annotations.json", {"annotations": []})
+    annotations = annotations_doc.get("annotations")
+    if not isinstance(annotations, list) or not annotations:
+        return {"status": "clear", "blocking_count": 0, "assumption_count": 0, "high_risk_count": 0, "items": []}
+    if review_validation is None:
+        return {
+            "status": "unknown",
+            "blocking_count": 0,
+            "assumption_count": 0,
+            "high_risk_count": 0,
+            "items": [],
+            "error": "review_validation unavailable",
+        }
+    report = review_validation.audit_annotation_clarity(annotations_doc)
+    items = report.get("items") if isinstance(report.get("items"), list) else []
+    blocking = [item for item in items if isinstance(item, dict) and item.get("status") == "fail"]
+    assumptions = [item for item in items if isinstance(item, dict) and item.get("status") == "warn"]
+    high_risk = [item for item in items if isinstance(item, dict) and item.get("high_risk")]
+    status = "clear"
+    if report.get("status") == "fail":
+        status = "fail"
+    elif report.get("status") == "warn":
+        status = "needs_assumption"
+    return {
+        "status": status,
+        "blocking_count": len(blocking),
+        "assumption_count": len(assumptions),
+        "high_risk_count": len(high_risk),
+        "items": items,
+    }
+
+
+def manifest_parameter_map(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    values = manifest.get("parameters")
+    if not isinstance(values, list):
+        return {}
+    return {
+        item["id"]: item
+        for item in values
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"]
+    }
+
+
+def patch_value_map(project: Path) -> dict[str, Any]:
+    data = load_json(project / "review" / "parameter_patch.json", {"patches": []})
+    patches = data.get("patches")
+    if not isinstance(patches, list):
+        return {}
+    values: dict[str, Any] = {}
+    for item in patches:
+        if isinstance(item, dict) and isinstance(item.get("parameter_id"), str):
+            values[item["parameter_id"]] = item.get("value")
+    return values
+
+
+def preview_parameter_map(project: Path, review_mesh: dict[str, Any]) -> dict[str, Any]:
+    path_value = review_mesh.get("path")
+    if not isinstance(path_value, str) or not path_value:
+        return {}
+    data = load_json(project / path_value, {})
+    values = data.get("parameters")
+    return values if isinstance(values, dict) else {}
+
+
+def parameter_state(
+    project: Path,
+    params_text: str,
+    manifest: dict[str, Any],
+    review_mesh: dict[str, Any],
+    preview: dict[str, Any],
+    coverage: dict[str, Any],
+) -> list[dict[str, Any]]:
+    manifest_params = manifest_parameter_map(manifest)
+    patch_values = patch_value_map(project)
+    preview_values = preview_parameter_map(project, review_mesh)
+    unused = {
+        item.get("id")
+        for item in coverage.get("unused_geometry_parameters", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    out: list[dict[str, Any]] = []
+    for item in parameter_details(params_text):
+        parameter_id = item["id"]
+        manifest_item = manifest_params.get(parameter_id, {})
+        validation = item.get("validation") if isinstance(item.get("validation"), dict) else {}
+        ui = item.get("ui") if isinstance(item.get("ui"), dict) else {}
+        preview_meta = item.get("preview") if isinstance(item.get("preview"), dict) else {}
+        truth_value = item.get("value")
+        review_value = manifest_item.get("value") if manifest_item else None
+        pending_patch_value = patch_values.get(parameter_id)
+        preview_snapshot_value = preview_values.get(parameter_id)
+        review_exposed = bool(manifest_item)
+        preview_bound = bool(preview_meta) or bool(manifest_item.get("preview") if isinstance(manifest_item, dict) else None)
+        affects_geometry = validation.get("affects_geometry") is True
+        source_consumed = not (affects_geometry and parameter_id in unused)
+        status = "current"
+        if parameter_id in patch_values:
+            status = "patch_pending"
+        elif review_exposed and review_value != truth_value:
+            status = "manifest_mismatch"
+        elif preview_snapshot_value is not None and preview_snapshot_value != truth_value:
+            status = "preview_stale"
+        elif preview.get("status") == "stale" and review_exposed:
+            status = "preview_stale"
+        elif not source_consumed:
+            status = "source_unconsumed"
+        elif not review_exposed:
+            status = "backend_only"
+        out.append(
+            {
+                "id": parameter_id,
+                "truth_value": truth_value,
+                "review_value": review_value,
+                "pending_patch_value": pending_patch_value,
+                "preview_snapshot_value": preview_snapshot_value,
+                "unit": item.get("unit") or manifest_item.get("unit"),
+                "affects_geometry": affects_geometry,
+                "source_consumed": source_consumed,
+                "review_exposed": review_exposed,
+                "preview_bound": preview_bound,
+                "editable": ui.get("editable"),
+                "status": status,
+            }
+        )
+    return out
+
+
+def review_state(
+    project: Path,
+    context: dict[str, Any],
+    manifest: dict[str, Any],
+    review_mesh: dict[str, Any],
+    parameters_state: list[dict[str, Any]],
+) -> dict[str, Any]:
+    manifest_params = manifest_parameter_map(manifest)
+    refs = manifest.get("refs")
+    refs_count = len(refs) if isinstance(refs, list) else 0
+    stale_panel = [
+        item
+        for item in parameters_state
+        if item.get("review_exposed") and item.get("status") not in {"current", "patch_pending"}
+    ]
+    preview = context["preview"]
+    return {
+        "pending_input": {
+            "parameter_patches": context["pending_review"]["parameter_patches"],
+            "annotations": context["pending_review"]["annotations"],
+        },
+        "annotation_clarity": annotation_clarity_summary(project),
+        "preview": {
+            "status": preview.get("status"),
+            "provenance": "present" if review_mesh.get("provenance") else "missing",
+            "mesh": review_mesh.get("path"),
+        },
+        "parameter_panel": {
+            "status": "current" if not stale_panel else "stale",
+            "exposed_count": len(manifest_params),
+            "stale_count": len(stale_panel),
+        },
+        "refs": {"status": "available" if refs_count else "missing", "count": refs_count},
+    }
+
+
 def layout_facts(project: Path) -> dict[str, Any]:
     data = load_json(project / "validation" / "layout_report.json", {})
     if not data:
@@ -284,40 +535,187 @@ def existing_unresolved(project: Path) -> dict[str, list[Any]]:
     return {"blockers": blockers, "questions": questions}
 
 
-def recommended_reads(context: dict[str, Any]) -> list[str]:
+def high_risk_terms(values: list[str]) -> list[str]:
+    terms: list[str] = []
+    for value in values:
+        if review_validation is not None and hasattr(review_validation, "high_risk_terms"):
+            terms.extend(review_validation.high_risk_terms(value))
+            continue
+        for match in HIGH_RISK_RE.finditer(value.replace("_", " ")):
+            terms.append(match.group(0).lower())
+    return sorted(set(terms))
+
+
+def risk_escalation(project: Path, context: dict[str, Any], parameters_state: list[dict[str, Any]]) -> list[str]:
+    reasons: list[str] = []
+    annotation_texts = [annotation.get("text", "") for annotation in open_annotations(project)]
+    annotation_terms = high_risk_terms([item for item in annotation_texts if isinstance(item, str)])
+    if annotation_terms:
+        reasons.append("high-risk annotation term(s): " + ", ".join(annotation_terms))
+    pending_parameter_ids = [
+        str(item.get("id"))
+        for item in parameters_state
+        if item.get("status") == "patch_pending"
+    ]
+    parameter_terms = high_risk_terms(pending_parameter_ids)
+    if parameter_terms:
+        reasons.append("high-risk parameter patch term(s): " + ", ".join(parameter_terms))
+    coverage = context.get("coverage", {})
+    gap_count = sum(
+        len(coverage.get(key, [])) if isinstance(coverage.get(key), list) else 0
+        for key in ["feature_gaps", "placement_gaps", "constraint_gaps", "validation_target_gaps"]
+    )
+    if gap_count:
+        reasons.append(f"coverage gap(s): {gap_count}")
+    if context.get("preview", {}).get("status") == "stale":
+        reasons.append("preview provenance is stale")
+    if context.get("validation", {}).get("status") == "fail":
+        reasons.append("validation report is failing")
+    return reasons
+
+
+def context_cost_for(next_action: str, context: dict[str, Any], escalation_reasons: list[str]) -> str:
+    clarity = context.get("review_state", {}).get("annotation_clarity", {})
+    if clarity.get("status") == "fail":
+        return "large"
+    if any("high-risk annotation" in reason for reason in escalation_reasons):
+        return "large"
+    if next_action == "inspect" and not escalation_reasons:
+        return "tiny"
+    if next_action == "apply_parameter_patch" and not escalation_reasons:
+        return "small"
+    if any("coverage gap" in reason or "validation report" in reason for reason in escalation_reasons):
+        return "medium"
+    if any("high-risk parameter" in reason for reason in escalation_reasons):
+        return "medium"
+    return "medium"
+
+
+def minimum_reads_for(
+    next_action: str,
+    context: dict[str, Any],
+    parameters_state: list[dict[str, Any]] | None = None,
+) -> list[str]:
     reads = ["validation/current_context.json"]
-    pending = context["pending_review"]
-    if pending["annotations"]:
-        reads.extend(["review/annotations.json", "review/manifest.json", "spec/current.yaml", "source/model.py"])
-    if pending["parameter_patches"]:
+    if next_action == "apply_parameter_patch":
         reads.extend(["review/parameter_patch.json", "parameters.yaml", "review/manifest.json"])
-    if context["validation"]["status"] == "fail":
+    elif next_action in {"clarify_review_annotation", "consume_annotation"}:
+        reads.extend(["review/annotations.json", "review/manifest.json"])
+        if next_action == "consume_annotation":
+            reads.extend(["spec/current.yaml", "parameters.yaml", "source/model.py"])
+    elif next_action == "update_review_preview":
+        reads.extend(["review/manifest.json", "parameters.yaml", "source/model.py"])
+    elif next_action == "fix_validation":
         reads.extend(["validation/report.json", "spec/current.yaml", "parameters.yaml", "source/model.py"])
-    if context["coverage"].get("status") in {"warn", "fail"}:
+    elif next_action == "fix_coverage":
         reads.extend(["validation/spec_coverage.json", "spec/current.yaml", "parameters.yaml", "source/model.py"])
-    if context["step"].get("stale"):
-        reads.extend(["outputs/step/manifest.json", "spec/current.yaml", "parameters.yaml", "source/model.py"])
-    if not pending["annotations"] and not pending["parameter_patches"] and context["validation"]["status"] != "fail":
-        reads.extend(["spec/current.yaml", "parameters.yaml", "source/model.py"])
+    elif next_action == "inspect":
+        reads = ["validation/current_context.json"]
+    pending = context.get("pending_review", {})
+    if pending.get("parameter_patches") and "review/parameter_patch.json" not in reads:
+        reads.extend(["review/parameter_patch.json", "parameters.yaml"])
+    if next_action == "apply_parameter_patch" and parameters_state:
+        pending_parameter_ids = [
+            str(item.get("id"))
+            for item in parameters_state
+            if item.get("status") == "patch_pending"
+        ]
+        if high_risk_terms(pending_parameter_ids):
+            reads.extend(["spec/current.yaml", "source/model.py", "validation/spec_coverage.json"])
+    if context.get("step", {}).get("stale") and next_action not in {"inspect", "apply_parameter_patch", "clarify_review_annotation"}:
+        reads.append("outputs/step/manifest.json")
     return list(dict.fromkeys(reads))
 
 
-def routing_summary(context: dict[str, Any]) -> dict[str, Any]:
+def gate_plan_for(next_action: str, context: dict[str, Any], escalation_reasons: list[str] | None = None) -> dict[str, Any]:
+    required_by_action = {
+        "inspect": ["update_current_context"],
+        "apply_parameter_patch": [
+            "apply_parameter_patch",
+            "source_build_smoke",
+            "review_parameter_audit",
+            "update_current_context",
+        ],
+        "clarify_review_annotation": ["review_clarity"],
+        "consume_annotation": ["review_clarity", "source_build_smoke", "coverage_audit", "update_current_context"],
+        "update_review_preview": [
+            "preview_checkpoint",
+            "source_build_smoke",
+            "sync_review_parameters",
+            "review_parameter_audit",
+            "update_current_context",
+        ],
+        "fix_validation": ["rerun_failing_validation", "update_current_context"],
+        "fix_coverage": ["coverage_audit", "update_current_context"],
+    }
+    required = list(required_by_action.get(next_action, ["update_current_context"]))
+    optional: list[str] = []
+    skipped = [
+        {
+            "gate": "step_export",
+            "reason": "draft review iteration; user did not request STEP",
+        },
+        {
+            "gate": "handoff_package",
+            "reason": "handoff package was not requested",
+        },
+    ]
+    if context.get("coverage", {}).get("status") == "not_run" and "coverage_audit" not in required:
+        optional.append("coverage_audit")
+    if escalation_reasons and any("high-risk parameter" in reason for reason in escalation_reasons):
+        if "coverage_audit" not in required:
+            required.append("coverage_audit")
+    if context.get("step", {}).get("state") == "not_exported":
+        optional.append("export_step_after_preview_confirmation")
+    return {"for_next_action": next_action, "required": required, "optional": optional, "skipped": skipped}
+
+
+def routing_summary(project: Path, context: dict[str, Any], parameters_state: list[dict[str, Any]]) -> dict[str, Any]:
     tags = ["continue_existing_project"]
     pending = context["pending_review"]
-    if pending["annotations"] or pending["parameter_patches"]:
+    clarity = context.get("review_state", {}).get("annotation_clarity", {})
+    next_action = "inspect"
+    if pending["annotations"]:
         tags.append("consume_review_feedback")
+        next_action = "clarify_review_annotation" if clarity.get("status") == "fail" else "consume_annotation"
+    elif pending["parameter_patches"]:
+        tags.append("consume_review_feedback")
+        next_action = "apply_parameter_patch"
+    elif context["validation"].get("status") == "fail":
+        next_action = "fix_validation"
+    elif context["coverage"].get("status") == "fail":
+        next_action = "fix_coverage"
+    elif context["coverage"].get("status") == "warn":
+        next_action = "fix_coverage"
+    elif context["preview"].get("status") in {"stale", "missing", "unknown"}:
+        next_action = "update_review_preview"
     if context["coverage"].get("status") in {"warn", "fail", "not_run"}:
         tags.append("spec_coverage_audit")
     if context["preview"].get("status") in {"stale", "missing", "unknown"}:
         tags.append("update_review_preview")
-    if context["step"].get("stale") or context["step"].get("state") == "not_exported":
-        tags.append("step_export")
     if context["validation"].get("status") == "fail":
         tags.append("validation_failure")
+    if next_action in {"consume_annotation", "fix_coverage"}:
+        tags.append("geometry_feature_change")
+    escalation_reasons = risk_escalation(project, context, parameters_state)
+    context_cost = context_cost_for(next_action, context, escalation_reasons)
+    minimum_reads = minimum_reads_for(next_action, context, parameters_state)
+    forbidden_actions = []
+    if pending["annotations"] or pending["parameter_patches"]:
+        forbidden_actions.extend(["export_step", "handoff_package"])
+    else:
+        forbidden_actions.append("handoff_package")
     return {
+        "next_action": next_action,
+        "intent": "continue_existing_project",
+        "context_cost": context_cost,
         "recommended_tags": list(dict.fromkeys(tags)),
-        "minimum_next_reads": recommended_reads(context),
+        "minimum_reads": minimum_reads,
+        "minimum_next_reads": minimum_reads,
+        "optional_reads": [],
+        "required_gates": gate_plan_for(next_action, context, escalation_reasons)["required"],
+        "forbidden_actions": forbidden_actions,
+        "escalation_reasons": escalation_reasons,
     }
 
 
@@ -332,7 +730,53 @@ def blockers(context: dict[str, Any]) -> list[str]:
         out.append("validation/report.json status is fail")
     if context["coverage"].get("status") == "fail":
         out.append("validation/spec_coverage.json status is fail")
+    clarity = context.get("review_state", {}).get("annotation_clarity", {})
+    if clarity.get("status") == "fail":
+        out.append("high-risk review annotations need clarification before modeling")
     return out
+
+
+def trust_summary(context: dict[str, Any], parameters_state: list[dict[str, Any]]) -> dict[str, str]:
+    parameter_statuses = {str(item.get("status")) for item in parameters_state}
+    if "patch_pending" in parameter_statuses:
+        parameters = "patch_pending"
+    elif parameter_statuses & {"manifest_mismatch", "preview_stale", "source_unconsumed"}:
+        parameters = "stale_or_unverified"
+    else:
+        parameters = "current"
+    step = context["step"].get("state") or "not_exported"
+    if context["step"].get("stale"):
+        step = "stale"
+    return {
+        "authoring_truth": "current" if context["validation"].get("status") != "fail" else "needs_repair",
+        "review_preview": str(context["preview"].get("status", "unknown")),
+        "parameters": parameters,
+        "step": str(step),
+        "handoff": "not_requested",
+    }
+
+
+def ready_states(project: Path, context: dict[str, Any], phase: str, manifest: dict[str, Any]) -> dict[str, bool]:
+    has_authoring = bool((project / "spec" / "current.yaml").is_file()) and bool((project / "parameters.yaml").is_file())
+    has_source = bool((project / "source" / "model.py").is_file())
+    has_review = not manifest.get("_error") and bool((project / "review" / "manifest.json").is_file())
+    authoring_ready = (
+        phase == "draft_review"
+        and has_authoring
+        and has_source
+        and has_review
+        and context["validation"].get("status") != "fail"
+    )
+    review_preview_ready = context["preview"].get("status") == "current"
+    draft_review_ready = authoring_ready and review_preview_ready
+    export_ready = context["step"].get("state") == "exported" and context["step"].get("stale") is False
+    return {
+        "authoring_ready": bool(authoring_ready),
+        "review_preview_ready": bool(review_preview_ready),
+        "draft_review_ready": bool(draft_review_ready),
+        "export_ready": bool(export_ready),
+        "handoff_ready": False,
+    }
 
 
 def summarize(project: Path) -> dict[str, Any]:
@@ -344,6 +788,7 @@ def summarize(project: Path) -> dict[str, Any]:
     name = yaml_scalar(spec_text, ["project", "name"]) or project_info.get("name") or project.name
     kind = yaml_scalar(spec_text, ["project", "kind"]) or project_info.get("kind")
     units = yaml_scalar(spec_text, ["project", "units"]) or project_info.get("units")
+    phase = yaml_scalar(spec_text, ["lifecycle", "phase"]) or "draft_review"
     source_entrypoint = yaml_scalar(spec_text, ["source", "entrypoint"]) or "source/model.py"
     review_mesh = review_mesh_summary(project, manifest)
     preview = preview_status(project, review_mesh)
@@ -352,6 +797,7 @@ def summarize(project: Path) -> dict[str, Any]:
         "schema": SCHEMA,
         "generated_at": utc_now(),
         "project": {"name": name, "kind": kind, "units": units},
+        "work_state": {"phase": phase},
         "source": {"entrypoint": source_entrypoint},
         "pending_review": {
             "annotations": pending_count(project, "review/annotations.json", "annotations"),
@@ -370,11 +816,22 @@ def summarize(project: Path) -> dict[str, Any]:
     context["step"]["export_allowed"] = not (
         context["pending_review"]["annotations"] or context["pending_review"]["parameter_patches"]
     )
-    context["routing"] = routing_summary(context)
+    context["parameter_state"] = parameter_state(project, params_text, manifest, review_mesh, preview, coverage)
+    context["review_state"] = review_state(project, context, manifest, review_mesh, context["parameter_state"])
+    context["trust"] = trust_summary(context, context["parameter_state"])
+    context["ready_states"] = ready_states(project, context, str(phase), manifest)
+    context["routing"] = routing_summary(project, context, context["parameter_state"])
+    context["gate_plan"] = gate_plan_for(
+        context["routing"]["next_action"],
+        context,
+        context["routing"].get("escalation_reasons", []),
+    )
+    context["routing"]["required_gates"] = context["gate_plan"]["required"]
     context["blockers"] = blockers(context)
     previous = load_json(project / "validation" / "current_context.json", {})
     context["assumptions"] = previous.get("assumptions", []) if isinstance(previous.get("assumptions", []), list) else []
-    context["recommended_next_reads"] = recommended_reads(context)
+    context["input_precision"] = previous.get("input_precision", {}) if isinstance(previous.get("input_precision"), dict) else {}
+    context["recommended_next_reads"] = context["routing"]["minimum_reads"]
     return context
 
 

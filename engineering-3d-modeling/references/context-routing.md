@@ -16,6 +16,25 @@ Do not default to full reads of long history, `previous/`, handoff packages, or 
 
 When multiple tags apply, merge their minimum reads. Prefer structured truth and generated evidence over narrative Markdown.
 
+## Current Context Control Plane
+
+For existing projects, `validation/current_context.json` is the low-token caller control plane. A future agent should first inspect:
+
+- `routing.next_action`: the project-state default operation, such as `inspect`, `apply_parameter_patch`, `clarify_review_annotation`, `consume_annotation`, `update_review_preview`, `fix_validation`, or `fix_coverage`. It does not override the user's current explicit intent; merge user intent with current context before acting.
+- `routing.context_cost`: expected context size, from `tiny` through `large`.
+- `routing.minimum_reads`: the smallest file set needed before acting.
+- `routing.escalation_reasons`: risk or state reasons that made the route larger.
+- `trust`: compact freshness/trust state for authoring truth, review preview, parameters, STEP, and handoff.
+- `ready_states`: whether the project is in draft-review, exported, or handoff-ready shape.
+- `review_state` and `parameter_state`: projections over review artifacts and parameter truth; they are not new truth sources.
+- `gate_plan`: required, optional, and intentionally skipped validation gates for the next action.
+
+A tiny `inspect` route should usually read only `validation/current_context.json`. A safe pending slider patch may add only `review/parameter_patch.json`, `parameters.yaml`, and `review/manifest.json`. Geometry, coverage, validation, assembly, or unclear high-risk review work must expand to spec/source and the relevant validation evidence.
+
+Do not treat missing STEP in a draft-review project as a default export route. `step_export` appears as a skipped or optional gate unless the user has asked for STEP or delivery. Pending annotations or parameter patches block export and handoff.
+
+`ready_states.draft_review_ready` means both authoring artifacts and the review preview are ready. If only spec/parameters/source/manifest exist, `authoring_ready` may be true while `review_preview_ready` and `draft_review_ready` remain false.
+
 ## Composable Task Tags
 
 ### `new_model_project`
@@ -29,7 +48,7 @@ When multiple tags apply, merge their minimum reads. Prefer structured truth and
 ### `continue_existing_project`
 
 - Minimum reads: project `AGENTS.md`, `validation/current_context.json` if present, otherwise `scripts/summarize_model_project.py` output.
-- Optional reads: `brief.md` for human orientation, `spec/current.yaml`, `parameters.yaml`, `validation/report.json`, `review/manifest.json`.
+- Optional reads: `brief.md` for human orientation, then only the files named by `routing.minimum_reads` or the matching task tag.
 - Writes: `validation/current_context.json` after stable state changes.
 - Forbidden writes: do not rewrite `brief.md` with history or open questions; do not migrate old project structure unless requested.
 - Validation expectations: confirm pending review state, STEP freshness, latest validation status, and recommended next reads before editing.

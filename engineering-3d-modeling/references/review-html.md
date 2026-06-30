@@ -15,6 +15,8 @@ Annotations are user-authored review input. Do not store agent diagnostics, base
 
 Review artifacts and cache files are derived from authoring truth. They are useful for feedback, live preview, and annotations, but they do not replace `spec/current.yaml`, `parameters.yaml`, source/formula modules, validation evidence, or direct STEP export.
 
+For continuation, prefer the generated `validation/current_context.json` `review_state` and `parameter_state` projections before opening every review artifact. These projections summarize pending input, annotation clarity, preview provenance, exposed parameter-panel trust, refs availability, and pending patch values. They are routing aids only; the underlying review files and `parameters.yaml` remain the artifacts to edit or consume.
+
 Before converting annotations into CAD changes, apply the review annotation clarity gate in `references/context-routing.md` and the bundled clarity audit. If target, operation, reference, direction, dimensions, scope, preserve rules, or validation are unclear and multiple interpretations are reasonable, ask before modeling. If exactly one low-risk interpretation is used, record that assumption in `spec/current.yaml` decisions/constraints or `validation/current_context.json`.
 
 ## Allowed V1 Features

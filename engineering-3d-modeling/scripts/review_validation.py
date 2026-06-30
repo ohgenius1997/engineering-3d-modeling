@@ -27,7 +27,74 @@ SCOPE_RE = re.compile(r"\b(selected|this|that|all|each|every|part|whole|global|s
 PRESERVE_RE = re.compile(r"\b(preserve|keep|do not|don't|without changing|leave|maintain)\b", re.IGNORECASE)
 VALIDATION_RE = re.compile(r"\b(validate|check|fit|clearance|collision|align|measure|verify|test)\b", re.IGNORECASE)
 REFERENCE_RE = re.compile(r"\b(edge|face|axis|ref|reference|from|to|against|with|hole|slot|mount|component|part)\b", re.IGNORECASE)
-HIGH_RISK_RE = re.compile(r"\b(hole|clearance|gap|fit|align|axis|collision|interference|mount|pcb|battery|screw|thread|cutout|opening|manufactur|bearing|gear)\b", re.IGNORECASE)
+HIGH_RISK_TERMS = {
+    "axis",
+    "battery",
+    "bearing",
+    "boss",
+    "chamfer",
+    "clearance",
+    "collision",
+    "connector",
+    "coordinate",
+    "cutout",
+    "direction",
+    "fillet",
+    "fit",
+    "gap",
+    "gear",
+    "hole",
+    "impeller",
+    "interference",
+    "mount",
+    "opening",
+    "origin",
+    "pcb",
+    "placement",
+    "port",
+    "rib",
+    "screw",
+    "slot",
+    "standoff",
+    "thread",
+    "wall",
+    "wallthickness",
+}
+HIGH_RISK_PREFIXES = ("align", "manufactur")
+HIGH_RISK_CN_TERMS = [
+    "孔",
+    "螺纹",
+    "螺丝",
+    "螺钉",
+    "螺栓",
+    "电池",
+    "间隙",
+    "缝隙",
+    "配合",
+    "卡扣",
+    "槽",
+    "开孔",
+    "切口",
+    "安装",
+    "固定",
+    "对齐",
+    "轴",
+    "坐标",
+    "方向",
+    "碰撞",
+    "干涉",
+    "装配",
+    "连接器",
+    "电机",
+    "轴承",
+    "齿轮",
+    "风扇",
+    "叶轮",
+    "壁厚",
+    "筋",
+    "倒角",
+    "圆角",
+]
 
 
 def load_json(path: Path) -> Any:
@@ -156,6 +223,30 @@ def validate_parameter_patch_schema(data: Any) -> list[str]:
     return validate_json_schema(data, load_schema("parameter_patch"))
 
 
+def identifier_tokens(value: str) -> list[str]:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", value)
+    normalized = re.sub(r"[^0-9A-Za-z]+", " ", normalized)
+    return [item.lower() for item in normalized.split() if item]
+
+
+def high_risk_terms(value: str) -> list[str]:
+    terms = set()
+    for token in identifier_tokens(value):
+        compact = token.replace("_", "")
+        if token in HIGH_RISK_TERMS or compact in HIGH_RISK_TERMS:
+            terms.add(token)
+        elif any(token.startswith(prefix) for prefix in HIGH_RISK_PREFIXES):
+            terms.add(token)
+    for term in HIGH_RISK_CN_TERMS:
+        if term in value:
+            terms.add(term)
+    return sorted(terms)
+
+
+def is_high_risk_text(value: str) -> bool:
+    return bool(high_risk_terms(value))
+
+
 def annotation_text(annotation: dict[str, Any]) -> str:
     value = annotation.get("text")
     return value if isinstance(value, str) else ""
@@ -204,11 +295,13 @@ def audit_annotation_clarity(annotations_doc: dict[str, Any]) -> dict[str, Any]:
             continue
         missing = annotation_missing_clarity(annotation)
         text = annotation_text(annotation)
-        high_risk = bool(HIGH_RISK_RE.search(text))
+        risk_terms = high_risk_terms(text)
+        high_risk = bool(risk_terms)
         item = {
             "id": annotation.get("id", index),
             "status": "fail" if high_risk and missing else ("warn" if missing else "pass"),
             "high_risk": high_risk,
+            "risk_terms": risk_terms,
             "missing": missing,
         }
         report["items"].append(item)

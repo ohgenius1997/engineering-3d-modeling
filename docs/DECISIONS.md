@@ -44,6 +44,7 @@
 - 2026-06-26 - Make preview revisions, direct STEP export, and optional handoff packages the daily CAD flow
 - 2026-06-30 - Separate source build smoke from explicit STEP export
 - 2026-06-30 - Add machine gates for coverage, source contracts, clarity, preview provenance, and regenerate transactions
+- 2026-06-30 - Make current context the caller control plane
 
 ## Decision Log
 
@@ -232,3 +233,9 @@
 - Rationale: Context routing alone can tell agents what to read, but it cannot prove that every declared feature or geometry parameter reached source, that review feedback is unambiguous, or that a failed regenerate did not leave partial truth changes behind.
 - Alternatives considered: document these as agent checklist items only; rejected because dogfood showed agents can skip or incompletely execute checklist loops. Build a full CAD operation AST; rejected because V1 should keep YAML as authoring intent, not a second CAD implementation.
 - Consequences: `audit_spec_coverage.py`, `validate_model_project.py`, `review_validation.py`, `audit_project_consistency.py`, `summarize_model_project.py`, and `regenerate_from_review.py` share responsibility for surfacing gaps. Coverage warnings remain allowed in draft review but must appear in current context; delivery and strict paths treat source contracts and stale proof more aggressively.
+
+### 2026-06-30 - Make current context the caller control plane
+- Decision: Treat `validation/current_context.json` as the first-read caller control plane for existing model projects. It should expose routing, trust, ready states, parameter/review projections, gate plans, blockers, assumptions, and risk escalation so small work stays small and high-risk work expands deliberately.
+- Rationale: Future agents should not need to reread the full skill/reference tree just to decide whether to inspect, apply a slider patch, clarify an annotation, refresh preview, fix validation, or export only after an explicit request.
+- Alternatives considered: add a separate route-planner script immediately; deferred because `summarize_model_project.py` already owns the generated digest and has existing call sites. Generate or hand-maintain a complete feature registry now; deferred because it risks becoming a second CAD implementation before source anchors and registry ownership are proven useful. Put parameter/review state into separate artifacts; rejected for this pass because projections inside current context avoid another truth-like file.
+- Consequences: `summarize_model_project.py` owns the first implementation of route planning. `parameter_state` and `review_state` are generated projections only; edits must happen in `parameters.yaml`, review artifacts, spec/source, or validation evidence, followed by refreshing current context. Missing STEP in draft review must not create a default `step_export` route.

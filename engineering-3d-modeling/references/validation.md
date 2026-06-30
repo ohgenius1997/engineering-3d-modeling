@@ -234,9 +234,26 @@ python3 engineering-3d-modeling/scripts/summarize_model_project.py /path/to/mode
 
 It should summarize project name/kind/units, source entrypoint, pending annotation and parameter patch counts, review mesh path/hash, STEP state and freshness, preview checkpoint availability, latest validation status/errors/warnings, key parameters, key layout facts, unresolved blockers/questions, and recommended next reads.
 
+It should also expose the caller control plane:
+
+- `routing.next_action`, `routing.context_cost`, `routing.minimum_reads`, `routing.required_gates`, `routing.forbidden_actions`, and `routing.escalation_reasons`; `next_action` is the project-state default route and must be merged with the user's explicit current intent;
+- `trust` for authoring truth, review preview, parameters, STEP, and handoff;
+- `ready_states` for `draft_review_ready`, `export_ready`, and `handoff_ready`;
+- `parameter_state` and `review_state` as generated projections, not editable truth;
+- `gate_plan` with required, optional, and skipped gates for the next action;
+- `blockers`, `assumptions`, and optional `input_precision`.
+
+The summary should preserve the cost shape of the workflow. Tiny inspect routes should not require spec/source reads. Safe pending parameter patches should stay small. Unclear high-risk annotations, geometry feature changes, assembly alignment, validation failures, and coverage gaps should escalate to the necessary authoring truth and validation evidence.
+
+High-risk detection must handle English text, snake_case or camelCase parameter ids, and common Chinese review terms for holes, threads, batteries, gaps, slots, snaps, mounting, axes, coordinates, collision/interference, and assembly fit.
+
 The summary must report stale STEP when `outputs/step/manifest.json` says `stale: true` or when recorded freshness hashes no longer match current `spec/current.yaml`, `parameters.yaml`, `source/model.py`, or review mesh hashes. Updating the summary does not make STEP fresh; rerun `scripts/export_step.py` for that.
 
 When no STEP files and no STEP manifest exist, current context should report `step.state: "not_exported"`. This is the normal state for a new draft-review project before user preview confirmation.
+
+Do not add `step_export` as a default next action only because STEP is missing. Record STEP export as skipped or optional until the user asks for STEP or delivery; pending review input must keep export and handoff forbidden.
+
+`ready_states.draft_review_ready` should be true only when authoring artifacts are present and the review preview is current. Use `authoring_ready` and `review_preview_ready` to explain partial readiness.
 
 ## Feature Registry
 
