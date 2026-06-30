@@ -36,6 +36,51 @@ The answer should be a caller-facing control plane centered on
 explain the system. The daily caller should route from a compact, generated
 project digest.
 
+## Cost Model Invariant
+
+The product goal is "large changes pay large context cost; small changes stay
+small." This should be a measurable workflow property, not just guidance.
+
+Small work should usually read only:
+
+- `validation/current_context.json`;
+- a pending patch or annotation artifact when present;
+- the directly affected parameter, manifest, or source section only if the
+  context says it is needed.
+
+Large work should intentionally expand context to:
+
+- `spec/current.yaml`;
+- `parameters.yaml`;
+- `source/model.py`;
+- feature registry or layout/report evidence;
+- validation, review, and consistency artifacts relevant to the risk.
+
+The control plane should make this expansion explicit through
+`routing.context_cost`, `routing.minimum_reads`, `routing.required_gates`, and
+`routing.escalation_reasons`.
+
+## Modeling Iteration Rings
+
+From a caller perspective, one modeling iteration should be decomposed into
+rings. A future implementation does not need to expose these names to end
+users, but the routing and tests should preserve the cost shape.
+
+| Ring | Purpose | Typical token cost | Spatial understanding | Code ability | Math ability |
+| --- | --- | --- | --- | --- | --- |
+| Route and inspect | Identify project state and next safe action from `current_context` | Tiny | Low | Low | Low |
+| Intent normalization | Convert user/review intent into controlled target/reference/operation/dimension/validation fields | Small to medium | Medium to high when geometry is ambiguous | Low | Medium |
+| Authoring truth update | Update spec, parameters, decisions, assumptions, or feature registry | Small to medium | Medium | Low to medium | Medium |
+| CAD implementation | Modify `source/model.py`, placements, constraints, or adapters | Medium to large | High | High | Medium to high |
+| Preview and validation | Build/smoke, update review preview, run targeted gates, refresh context | Small to medium | Medium | Medium | Low to medium |
+| User review consumption | Apply parameter patch or annotation after clarity checks | Small when patch-only, medium when geometry changes | Medium | Medium | Low to medium |
+| Explicit export or handoff | Export STEP or package handoff after user asks or delivery is required | Small to medium | Low to medium | Medium | Low |
+
+The route should not automatically move through every ring. For example, a
+first-pass model should normally stop at preview and `draft_review_ready`.
+Parameter-only review feedback should avoid the full CAD implementation ring
+when the current parameter state proves the change is safe.
+
 ## Diagnosis From Caller Perspective
 
 ### 1. The Skill Is Still Too Document-Driven
@@ -173,6 +218,25 @@ The project digest should separate:
 - assumptions requiring confirmation.
 
 ## Proposed Target Architecture
+
+### Brief And Spec Boundary
+
+`brief.md` should remain a short human-facing summary generated from confirmed
+intent. It should not be a hidden context cache for the agent.
+
+The scaffold and summary flow should preserve these rules:
+
+- no open questions in `brief.md`;
+- no long requirement lists;
+- no parameter tables;
+- no bbox, placement, transform, or validation evidence;
+- no iteration history or agent diagnostics;
+- point readers to structured truth files instead of duplicating them.
+
+`spec/current.yaml` remains the structured authoring truth for coordinate
+system, placements, features, constraints, decisions, and validation targets.
+This boundary matters for token cost: future agents should not need to read a
+long `brief.md` to recover exact engineering state.
 
 ### Current Context As Agent Control Plane
 
