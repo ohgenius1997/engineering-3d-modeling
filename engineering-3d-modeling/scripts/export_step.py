@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from pathlib import Path
-import subprocess
 import sys
 from typing import Any
 
@@ -16,7 +16,9 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import audit_project_consistency
+import audit_spec_coverage
 import iteration_utils
+import summarize_model_project
 import validate_model_project
 
 
@@ -55,6 +57,55 @@ def geometry_summary(project: Path) -> dict[str, Any]:
         "bbox_size": signature[2],
         "volume": signature[3],
         "area": signature[4],
+    }
+
+
+def assembly_step_path(project: Path, spec: dict[str, Any] | None) -> Path:
+    if isinstance(spec, dict):
+        outputs = spec.get("outputs")
+        if isinstance(outputs, dict):
+            value = outputs.get("assembly_step")
+            if isinstance(value, str) and value.strip():
+                path = Path(value)
+                return path if path.is_absolute() else project / path
+    return project / "outputs" / "step" / f"{project.name}.step"
+
+
+def export_model_step(model: object, path: Path, model_module: object) -> None:
+    write_step = getattr(model_module, "write_step", None)
+    if callable(write_step):
+        signature = inspect.signature(write_step)
+        if len(signature.parameters) >= 2:
+            write_step(model, path)
+        else:
+            write_step(model)
+        return
+
+    try:
+        from build123d import export_step as build123d_export_step
+    except ImportError as exc:
+        raise RuntimeError(
+            "build123d is required to export STEP when source/model.py does not define write_step(model, path)"
+        ) from exc
+    path.parent.mkdir(parents=True, exist_ok=True)
+    build123d_export_step(model, str(path))
+
+
+def build_and_export_step(project: Path, source_path: Path, output_path: Path) -> dict[str, Any]:
+    model_module = validate_model_project.load_model_module(source_path)
+    load_parameters = getattr(model_module, "load_parameters", None)
+    build_model = getattr(model_module, "build_model", None)
+    if not callable(load_parameters):
+        raise RuntimeError("source/model.py must define callable load_parameters(path)")
+    if not callable(build_model):
+        raise RuntimeError("source/model.py must define callable build_model(params)")
+    params = load_parameters(project / "parameters.yaml")
+    model = build_model(params)
+    export_model_step(model, output_path, model_module)
+    return {
+        "source": iteration_utils.safe_relative(source_path, project),
+        "output": iteration_utils.safe_relative(output_path, project),
+        "model_type": type(model).__name__,
     }
 
 
@@ -109,34 +160,74 @@ def export_step(
         )
         return report
 
-    source_path = validate_model_project.source_path_from_spec(project, iteration_utils.load_yaml_doc(project / "spec" / "current.yaml"))
+    spec = iteration_utils.load_yaml_doc(project / "spec" / "current.yaml")
+    coverage = audit_spec_coverage.audit(project, write=True)
+    report["steps"].append(
+        {
+            "step": "spec-coverage-audit",
+            "status": coverage["status"],
+            "feature_gap_count": len(coverage.get("feature_gaps", [])),
+            "unused_geometry_parameter_count": len(coverage.get("unused_geometry_parameters", [])),
+        }
+    )
+    report["written"].append("validation/spec_coverage.json")
+    if coverage["status"] == "fail":
+        report["errors"].extend(f"spec coverage: {item}" for item in coverage.get("errors", []))
+        return report
+    if coverage["status"] == "warn":
+        report["warnings"].extend(f"spec coverage: {item}" for item in coverage.get("warnings", []))
+
+    source_path = validate_model_project.source_path_from_spec(project, spec)
     if source_path is None or not source_path.is_file():
         report["errors"].append("source/model.py is missing; cannot regenerate STEP")
         report["steps"].append({"step": "source", "status": "fail", "source": str(source_path) if source_path else None})
         return report
 
-    result = subprocess.run(
-        [python_executable, str(source_path)],
-        cwd=str(project),
-        capture_output=True,
-        text=True,
-    )
+    output_path = assembly_step_path(project, spec)
+    if python_executable != sys.executable:
+        report["warnings"].append(
+            "--python is retained for compatibility; export_step.py now imports source/model.py in the current interpreter. "
+            "Run this script with the desired Python executable instead."
+        )
+    try:
+        build_export = build_and_export_step(project, source_path, output_path)
+    except Exception as exc:
+        report["errors"].append(f"current authoring source could not export STEP: {exc}")
+        report["steps"].append(
+            {
+                "step": "build-and-export-step",
+                "status": "fail",
+                "source": iteration_utils.safe_relative(source_path, project),
+                "output": iteration_utils.safe_relative(output_path, project),
+                "message": str(exc),
+            }
+        )
+        return report
+
     step_files = iteration_utils.step_files(project)
-    build_status = "pass" if result.returncode == 0 and step_files else "fail"
+    build_status = "pass" if step_files else "fail"
     report["steps"].append(
         {
-            "step": "build-source",
+            "step": "build-and-export-step",
             "status": build_status,
-            "command": [python_executable, iteration_utils.safe_relative(source_path, project)],
-            "returncode": result.returncode,
+            "source": build_export["source"],
+            "output": build_export["output"],
+            "model_type": build_export["model_type"],
             "step_files": [iteration_utils.safe_relative(path, project) for path in step_files],
-            "stdout": result.stdout[-4000:] if result.stdout else "",
-            "stderr": result.stderr[-4000:] if result.stderr else "",
         }
     )
     if build_status != "pass":
         report["errors"].append("current authoring source did not produce STEP/STP under outputs/step")
         return report
+    if iteration_utils.update_review_manifest_current(project, source_path=source_path, step_path=output_path):
+        report["written"].append("review/manifest.json")
+        report["steps"].append(
+            {
+                "step": "update-review-manifest-step",
+                "status": "pass",
+                "step_path": iteration_utils.review_relative_path(project, output_path),
+            }
+        )
 
     readability = step_readability(project)
     unreadable = [item["path"] for item in readability if not item["readable"]]
@@ -194,6 +285,21 @@ def export_step(
         )
         return report
 
+    try:
+        current_context = summarize_model_project.write_current_context(project)
+        report["written"].append("validation/current_context.json")
+        report["steps"].append(
+            {
+                "step": "write-current-context",
+                "status": "pass",
+                "step_state": current_context.get("step", {}).get("state"),
+                "step_stale": current_context.get("step", {}).get("stale"),
+            }
+        )
+    except Exception as exc:
+        report["warnings"].append(f"could not refresh validation/current_context.json: {exc}")
+        report["steps"].append({"step": "write-current-context", "status": "warn", "message": str(exc)})
+
     report["status"] = "pass"
     report["manifest"] = manifest
     return report
@@ -202,7 +308,11 @@ def export_step(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_path", help="Model project root")
-    parser.add_argument("--python", default=sys.executable, help="Python executable used to run source/model.py")
+    parser.add_argument(
+        "--python",
+        default=sys.executable,
+        help="Compatibility option; run this script with the desired Python because export imports source/model.py in-process",
+    )
     parser.add_argument("--skip-validation", action="store_true", help="Skip validate_model_project.py after export")
     parser.add_argument("--geometry-smoke", action="store_true", help="Run geometry smoke validation after export")
     args = parser.parse_args()

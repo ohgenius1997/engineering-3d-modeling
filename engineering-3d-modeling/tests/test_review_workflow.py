@@ -20,6 +20,7 @@ if str(SCRIPTS) not in sys.path:
 
 import apply_parameter_patch
 import audit_project_consistency
+import audit_spec_coverage
 import audit_review_parameters
 import begin_model_iteration
 import checkpoint_preview_revision
@@ -77,6 +78,13 @@ class ReviewWorkflowTests(unittest.TestCase):
         step_path.write_text("ISO-10303-21;\nEND-ISO-10303-21;\n", encoding="utf-8")
 
     def write_step_manifest(self, state: str, *, stale: bool = False) -> None:
+        step_path = self.project / "outputs" / "step" / "demo-model.step"
+        if step_path.is_file():
+            iteration_utils.update_review_manifest_current(
+                self.project,
+                source_path=self.project / "source" / "model.py",
+                step_path=step_path,
+            )
         iteration_utils.write_step_manifest(
             self.project,
             state=state,
@@ -106,6 +114,14 @@ class ReviewWorkflowTests(unittest.TestCase):
             "schema": "engineering-3d-modeling.preview_mesh.v1",
             "units": "mm",
             "source": "source/model.py",
+            "provenance": {
+                "spec_hash": validate_model_project.file_sha256(self.project / "spec" / "current.yaml"),
+                "parameters_hash": validate_model_project.file_sha256(self.project / "parameters.yaml"),
+                "source_hash": validate_model_project.file_sha256(self.project / "source" / "model.py"),
+                "manifest_hash": validate_model_project.file_sha256(self.project / "review" / "manifest.json"),
+                "generated_by": "unit-test",
+                "generated_at": "2026-06-29T00:00:00Z",
+            },
             "parameters": mesh_parameters,
             "vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]],
             "faces": [
@@ -194,8 +210,27 @@ class ReviewWorkflowTests(unittest.TestCase):
         ]:
             self.assertIn(key, spec)
         self.assertIn("current_context", spec["validation"])
+        self.assertIn("spec_coverage", spec["validation"])
         self.assertIn("feature_registry", spec["validation"])
         self.assertIn("layout_report", spec["validation"])
+
+    def test_scaffold_source_smoke_does_not_write_step_or_manifest(self) -> None:
+        manifest = json.loads((self.project / "review" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["versions"]["current"]["source"], "../source/model.py")
+        self.assertIsNone(manifest["versions"]["current"]["step"])
+        self.assertFalse((self.project / "outputs" / "step" / "manifest.json").exists())
+
+        result = subprocess.run(
+            [sys.executable, str(self.project / "source" / "model.py")],
+            cwd=str(self.project),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("STEP export is deferred", result.stdout)
+        self.assertFalse(list((self.project / "outputs" / "step").glob("*.step")))
+        self.assertFalse((self.project / "outputs" / "step" / "manifest.json").exists())
 
     def test_context_routing_reference_contains_tags_artifacts_and_clarity_gate(self) -> None:
         routing = (SKILL_ROOT / "references" / "context-routing.md").read_text(encoding="utf-8")
@@ -207,6 +242,7 @@ class ReviewWorkflowTests(unittest.TestCase):
             "parameter_preview_or_adapter",
             "geometry_feature_change",
             "assembly_alignment",
+            "spec_coverage_audit",
             "step_export",
             "handoff_package",
             "preview_rollback",
@@ -219,6 +255,8 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertIn("## Review Annotation Clarity Gate", routing)
         for dimension in ["target", "operation", "reference", "direction", "dimensions", "scope", "preserve", "validation"]:
             self.assertIn(dimension, routing)
+        self.assertIn("no direct STEP export", routing)
+        self.assertIn("preview confirmation", routing)
 
     def test_summarize_model_project_human_json_and_current_context_outputs(self) -> None:
         annotations = {
@@ -260,6 +298,82 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         cli_context = json.loads(result.stdout)
         self.assertEqual(cli_context["pending_review"]["annotations"], 1)
+
+    def test_spec_coverage_audit_reports_missing_feature_and_unused_geometry_parameter(self) -> None:
+        yaml = load_yaml()
+        spec_path = self.project / "spec" / "current.yaml"
+        spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+        spec["features"] = [{"id": "fan_grille", "purpose": "air outlet"}]
+        spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["battery_boost_gap"] = {
+            "value": 2.0,
+            "unit": "mm",
+            "validation": {"affects_geometry": True},
+        }
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+
+        report = audit_spec_coverage.audit(self.project, write=True)
+        self.assertEqual(report["status"], "warn", report)
+        self.assertEqual(report["feature_gaps"][0]["id"], "fan_grille")
+        self.assertEqual(report["unused_geometry_parameters"][0]["id"], "battery_boost_gap")
+        self.assertTrue((self.project / "validation" / "spec_coverage.json").is_file())
+
+        context = summarize_model_project.summarize(self.project)
+        self.assertEqual(context["coverage"]["status"], "warn")
+        self.assertIn("spec_coverage_audit", context["routing"]["recommended_tags"])
+        self.assertIn("validation/spec_coverage.json", context["recommended_next_reads"])
+
+    def test_spec_coverage_audit_honors_unused_reason(self) -> None:
+        yaml = load_yaml()
+        params_path = self.project / "parameters.yaml"
+        params = yaml.safe_load(params_path.read_text(encoding="utf-8"))
+        params["parameters"]["documentation_only_gap"] = {
+            "value": 2.0,
+            "unit": "mm",
+            "validation": {"affects_geometry": True, "unused_reason": "reserved for later option"},
+        }
+        params_path.write_text(yaml.safe_dump(params, sort_keys=False), encoding="utf-8")
+
+        report = audit_spec_coverage.audit(self.project)
+        self.assertEqual(report["status"], "pass", report)
+        self.assertEqual(report["waived_unused_geometry_parameters"][0]["id"], "documentation_only_gap")
+
+    def test_validate_model_project_checks_source_interface(self) -> None:
+        source = self.project / "source" / "model.py"
+        source.write_text(
+            "from pathlib import Path\n"
+            "def load_parameters(path: Path):\n"
+            "    return {}\n",
+            encoding="utf-8",
+        )
+        report = validate_model_project.validate(self.project, require_step=False)
+        self.assertEqual(report["status"], "fail", report)
+        self.assertIn("build_model", "\n".join(report["errors"]))
+
+    def test_validate_model_project_warns_legacy_direct_source_step_export(self) -> None:
+        source = self.project / "source" / "model.py"
+        source.write_text(
+            "from pathlib import Path\n"
+            "def load_parameters(path: Path):\n"
+            "    return {}\n"
+            "def build_model(params):\n"
+            "    return object()\n"
+            "def write_step(model, path: Path):\n"
+            "    pass\n"
+            "def main():\n"
+            "    write_step(build_model({}), Path('outputs/step/demo-model.step'))\n"
+            "if __name__ == '__main__':\n"
+            "    main()\n",
+            encoding="utf-8",
+        )
+        report = validate_model_project.validate(self.project, require_step=False)
+        self.assertIn("direct run appears to export STEP", "\n".join(report["warnings"]))
+
+        strict = validate_model_project.validate(self.project, require_step=True)
+        self.assertIn("direct run appears to export STEP", "\n".join(strict["errors"]))
 
     def test_summarize_model_project_reports_step_freshness_and_stale_hashes(self) -> None:
         self.write_exporting_fake_model_source()
@@ -340,15 +454,9 @@ def build_model(params: dict) -> Model:
             path.read_text(encoding="utf-8")
             + '''
 
-def main() -> None:
-    out = Path("outputs/step/demo-model.step")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("ISO-10303-21;\\nHEADER;\\nENDSEC;\\nDATA;\\nENDSEC;\\nEND-ISO-10303-21;\\n", encoding="utf-8")
-    print(f"wrote {out}")
-
-
-if __name__ == "__main__":
-    main()
+def write_step(model, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("ISO-10303-21;\\nHEADER;\\nENDSEC;\\nDATA;\\nENDSEC;\\nEND-ISO-10303-21;\\n", encoding="utf-8")
 ''',
             encoding="utf-8",
         )
@@ -526,6 +634,19 @@ The current model is a Fusion 360 API script.
         self.assertIn("brief_stale_backend_reference", codes)
         self.assertIn("brief_stale_parameter_value", codes)
 
+    def test_preview_provenance_stale_is_reported_by_audit_and_current_context(self) -> None:
+        self.write_mesh_cache()
+        source = self.project / "source" / "model.py"
+        source.write_text(source.read_text(encoding="utf-8") + "\n# changed after preview\n", encoding="utf-8")
+
+        report = audit_project_consistency.audit(self.project)
+        codes = {item["code"] for item in report["warnings"]}
+        self.assertIn("preview_provenance_stale", codes)
+
+        context = summarize_model_project.summarize(self.project)
+        self.assertEqual(context["preview"]["status"], "stale")
+        self.assertIn("source_hash", context["preview"]["stale_reasons"])
+
     def test_consistency_audit_fails_on_stale_validation_report_current_fields(self) -> None:
         self.write_step_output()
         self.write_mesh_cache()
@@ -647,6 +768,94 @@ The current model is a Fusion 360 API script.
         self.assertTrue((self.project / "previous" / "spec" / "current.yaml").is_file())
         manifest = json.loads((self.project / "outputs" / "step" / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["state"], "draft")
+
+    def test_regenerate_blocks_unclear_high_risk_annotation(self) -> None:
+        annotations = {
+            "schema": "engineering-3d-modeling.annotations.v1",
+            "annotations": [
+                {
+                    "id": "ann-hole",
+                    "created_at": "2026-06-29T00:00:00Z",
+                    "text": "Move this hole a bit.",
+                    "target": None,
+                    "status": "open",
+                }
+            ],
+        }
+        (self.project / "review" / "annotations.json").write_text(json.dumps(annotations, indent=2) + "\n", encoding="utf-8")
+
+        result = regenerate_from_review.regenerate(
+            self.project,
+            python_executable=sys.executable,
+            skip_environment_check=True,
+            skip_sync_review_parameters=True,
+            skip_review_parameter_audit=True,
+            review_parameter_audit_mode="basic",
+            skip_validation=True,
+            skip_geometry_smoke=True,
+            keep_patch=True,
+            allow_pending_annotations=True,
+            clear_annotations=True,
+        )
+        self.assertEqual(result["status"], "fail", result)
+        self.assertEqual(result["transaction"]["status"], "restored")
+        self.assertIn("annotation-clarity", [step["step"] for step in result["steps"]])
+
+    def test_regenerate_records_low_risk_clarity_assumption(self) -> None:
+        self.write_fake_model_source()
+        annotations = {
+            "schema": "engineering-3d-modeling.annotations.v1",
+            "annotations": [
+                {
+                    "id": "ann-label",
+                    "created_at": "2026-06-29T00:00:00Z",
+                    "text": "Make the label nicer.",
+                    "target": None,
+                    "status": "open",
+                }
+            ],
+        }
+        (self.project / "review" / "annotations.json").write_text(json.dumps(annotations, indent=2) + "\n", encoding="utf-8")
+
+        result = regenerate_from_review.regenerate(
+            self.project,
+            python_executable=sys.executable,
+            skip_environment_check=True,
+            skip_sync_review_parameters=True,
+            skip_review_parameter_audit=True,
+            review_parameter_audit_mode="basic",
+            skip_validation=True,
+            skip_geometry_smoke=True,
+            keep_patch=True,
+            allow_pending_annotations=True,
+            clear_annotations=False,
+        )
+        self.assertEqual(result["status"], "pass", result)
+        self.assertEqual(result["transaction"]["status"], "committed")
+        context = json.loads((self.project / "validation" / "current_context.json").read_text(encoding="utf-8"))
+        self.assertEqual(context["assumptions"][0]["annotation_id"], "ann-label")
+
+    def test_regenerate_failure_restores_transaction_files(self) -> None:
+        original_context = json.loads((self.project / "validation" / "current_context.json").read_text(encoding="utf-8"))
+        self.write_patch(self.patch_doc("unknown_parameter", 5.0))
+
+        result = regenerate_from_review.regenerate(
+            self.project,
+            python_executable=sys.executable,
+            skip_environment_check=True,
+            skip_sync_review_parameters=True,
+            skip_review_parameter_audit=True,
+            review_parameter_audit_mode="basic",
+            skip_validation=True,
+            skip_geometry_smoke=True,
+            keep_patch=True,
+            allow_pending_annotations=False,
+            clear_annotations=False,
+        )
+        self.assertEqual(result["status"], "fail", result)
+        self.assertEqual(result["transaction"]["status"], "restored")
+        restored_context = json.loads((self.project / "validation" / "current_context.json").read_text(encoding="utf-8"))
+        self.assertEqual(restored_context, original_context)
 
     def test_promote_draft_review_to_accepted_current(self) -> None:
         self.write_step_output()
@@ -1063,6 +1272,12 @@ The current model is a Fusion 360 API script.
         self.assertFalse(manifest["stale"])
         self.assertEqual(manifest["generated_by"], "scripts/export_step.py")
         self.assertIn("review_mesh_hash", manifest)
+        review_manifest = json.loads((self.project / "review" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(review_manifest["versions"]["current"]["source"], "../source/model.py")
+        self.assertEqual(review_manifest["versions"]["current"]["step"], "../outputs/step/demo-model.step")
+        current_context = json.loads((self.project / "validation" / "current_context.json").read_text(encoding="utf-8"))
+        self.assertEqual(current_context["step"]["state"], "exported")
+        self.assertFalse(current_context["step"]["stale"])
         self.assertTrue((self.project / "validation" / "report.json").is_file())
 
     def test_export_step_fails_with_pending_review_data(self) -> None:

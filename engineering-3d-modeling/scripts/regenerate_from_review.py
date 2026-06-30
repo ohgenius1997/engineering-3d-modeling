@@ -30,9 +30,20 @@ import audit_review_parameters
 import begin_model_iteration
 import iteration_utils
 import reset_review_state
+import review_validation
 import summarize_model_project
 import sync_review_parameters
 import validate_model_project
+
+
+TRANSACTION_PATHS = [
+    "parameters.yaml",
+    "review/manifest.json",
+    "validation/report.json",
+    "validation/current_context.json",
+    "review/parameter_patch.json",
+    "review/annotations.json",
+]
 
 
 def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
@@ -43,6 +54,72 @@ def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise RuntimeError(f"{path} must contain a JSON object")
     return data
+
+
+def read_optional_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+
+
+def restore_optional_text(path: Path, text: str | None) -> None:
+    if text is None:
+        if path.exists():
+            path.unlink()
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def begin_transaction(project: Path) -> dict[str, str | None]:
+    return {rel: read_optional_text(project / rel) for rel in TRANSACTION_PATHS}
+
+
+def restore_transaction(project: Path, snapshot: dict[str, str | None]) -> None:
+    for rel, text in snapshot.items():
+        restore_optional_text(project / rel, text)
+
+
+def fail_with_restore(
+    project: Path,
+    report: dict[str, Any],
+    transaction: dict[str, str | None] | None,
+    step_name: str,
+    message: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    if transaction is not None:
+        restore_transaction(project, transaction)
+        report["transaction"] = {"status": "restored", "paths": sorted(transaction)}
+    return fail(report, step_name, message, **extra)
+
+
+def record_low_risk_clarity_assumptions(project: Path, clarity: dict[str, Any]) -> list[dict[str, Any]]:
+    assumptions = []
+    for item in clarity.get("items", []):
+        if not isinstance(item, dict) or item.get("status") != "warn":
+            continue
+        assumptions.append(
+            {
+                "source": "review_annotation_clarity",
+                "annotation_id": item.get("id"),
+                "missing": item.get("missing", []),
+                "assumption": "Low-risk review annotation clarity gaps were left for agent interpretation before modeling.",
+            }
+        )
+    if not assumptions:
+        return []
+    context_path = project / "validation" / "current_context.json"
+    context = load_json(context_path, {"schema": "engineering-3d-modeling.current_context.v1"})
+    existing = context.get("assumptions")
+    if not isinstance(existing, list):
+        existing = []
+    existing.extend(assumptions)
+    context["assumptions"] = existing
+    context_path.parent.mkdir(parents=True, exist_ok=True)
+    context_path.write_text(json.dumps(context, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return assumptions
 
 
 def pending_annotation_count(project: Path) -> int:
@@ -181,9 +258,45 @@ def regenerate(
             }
         )
 
-    if annotation_count and not (allow_pending_annotations or clear_annotations):
-        return fail(
+    transaction = begin_transaction(project)
+    report["transaction"] = {"status": "started", "paths": sorted(transaction)}
+
+    annotations_doc = load_json(project / "review" / "annotations.json", {"annotations": []})
+    clarity_report = review_validation.audit_annotation_clarity(annotations_doc)
+    report["steps"].append(
+        {
+            "step": "annotation-clarity",
+            "status": clarity_report["status"],
+            "error_count": len(clarity_report.get("errors", [])),
+            "warning_count": len(clarity_report.get("warnings", [])),
+            "result": clarity_report,
+        }
+    )
+    if clarity_report["status"] == "fail":
+        return fail_with_restore(
+            project,
             report,
+            transaction,
+            "annotation-clarity",
+            "review annotations are too ambiguous for safe regeneration",
+            errors=clarity_report.get("errors", []),
+        )
+    clarity_assumptions = record_low_risk_clarity_assumptions(project, clarity_report)
+    if clarity_assumptions:
+        report["written"].append("validation/current_context.json")
+        report["steps"].append(
+            {
+                "step": "record-clarity-assumptions",
+                "status": "pass",
+                "assumption_count": len(clarity_assumptions),
+            }
+        )
+
+    if annotation_count and not (allow_pending_annotations or clear_annotations):
+        return fail_with_restore(
+            project,
+            report,
+            transaction,
             "preflight-annotations",
             (
                 f"review/annotations.json contains {annotation_count} annotation(s). "
@@ -238,8 +351,7 @@ def regenerate(
         report["steps"].append(step)
         env_report = step.get("report") if isinstance(step.get("report"), dict) else {}
         if step["status"] != "pass" or env_report.get("status") == "fail":
-            report["status"] = "fail"
-            return report
+            return fail_with_restore(project, report, transaction, "environment", "environment check failed")
 
     apply_result = apply_parameter_patch.apply_patch(project, clear_patch=False, dry_run=False)
     report["steps"].append(
@@ -252,15 +364,13 @@ def regenerate(
     )
     report["written"].extend(apply_result.get("written", []))
     if apply_result["status"] == "fail":
-        report["status"] = "fail"
-        return report
+        return fail_with_restore(project, report, transaction, "apply-parameter-patch", "parameter patch application failed")
 
     step = source_build_step(project, python_executable)
     step["step"] = "build-source"
     report["steps"].append(step)
     if step["status"] != "pass":
-        report["status"] = "fail"
-        return report
+        return fail_with_restore(project, report, transaction, "build-source", "source/model.py build smoke failed")
     if iteration_utils.step_files(project):
         step_manifest = iteration_utils.load_step_manifest(project)
         if step_manifest is None:
@@ -293,8 +403,7 @@ def regenerate(
         )
         report["written"].extend(sync_result.get("written", []))
         if sync_result["status"] != "pass":
-            report["status"] = "fail"
-            return report
+            return fail_with_restore(project, report, transaction, "sync-review-parameters", "review parameter sync failed")
 
     if not skip_review_parameter_audit:
         audit_report = audit_review_parameters.audit(project, mode=audit_mode)
@@ -310,8 +419,7 @@ def regenerate(
             }
         )
         if audit_report["status"] == "fail":
-            report["status"] = "fail"
-            return report
+            return fail_with_restore(project, report, transaction, "review-parameter-audit", "review parameter audit failed")
 
     if not skip_validation:
         validation_report = validate_model_project.validate(
@@ -336,8 +444,7 @@ def regenerate(
             }
         )
         if validation_report["status"] != "pass":
-            report["status"] = "fail"
-            return report
+            return fail_with_restore(project, report, transaction, "validate", "validation failed")
 
         consistency_mode = validate_model_project.consistency_mode_for_phase("auto", phase)
         if consistency_mode != "off":
@@ -362,8 +469,7 @@ def regenerate(
                 }
             )
             if consistency_report["status"] == "fail":
-                report["status"] = "fail"
-                return report
+                return fail_with_restore(project, report, transaction, "project-consistency-audit", "project consistency audit failed")
 
     should_clear_annotations = clear_annotations or annotation_count == 0
     should_clear_patch = not keep_patch
@@ -418,6 +524,7 @@ def regenerate(
         )
 
     report["status"] = "pass"
+    report["transaction"] = {"status": "committed", "paths": sorted(transaction)}
     return report
 
 

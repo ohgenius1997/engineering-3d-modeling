@@ -21,6 +21,9 @@ V1 validation should distinguish:
 - strict handoff package checks that compare authoring truth, review artifacts, STEP outputs, validation reports, and package manifests.
 - current-context summaries that let future sessions resume from `validation/current_context.json` instead of full history reads.
 - optional feature registry checks for complex models, treating `validation/feature_registry.json` as an index rather than a second CAD implementation.
+- spec-to-source coverage checks that prevent declared features, placements, constraints, validation targets, or geometry parameters from silently staying unimplemented.
+- source interface checks that prove scripts can import `source/model.py` and call `load_parameters(path)` plus `build_model(params)` without relying on direct CLI STEP export.
+- review annotation clarity checks, preview provenance checks, and regenerate transaction restore checks for safe review iteration.
 
 ## Minimum Project Checks
 
@@ -56,14 +59,24 @@ Draft STEP is allowed for review, but a manifest with `state: "draft"` or `stale
 
 Use `scripts/validate_model_project.py --require-step` when a delivery check must fail without STEP regardless of phase.
 
+## Coverage And Source Interface Gates
+
+Run `scripts/audit_spec_coverage.py` before accepting large spec/source changes and before direct STEP export. It writes `validation/spec_coverage.json` when `--write` is used. The audit should report spec features, placements, constraints, and validation targets that cannot be found in `source/model.py`, `validation/feature_registry.json`, or generated validation evidence. It should also report `parameters.yaml` entries with `validation.affects_geometry: true` that are not consumed by source and do not carry `validation.unused_reason`.
+
+Coverage `warn` findings are allowed during draft review but must be visible in `validation/current_context.json`. Coverage `fail` findings block export and validation.
+
+`source/model.py` must expose `load_parameters(path)` and `build_model(params)`. `write_step(model, path)` is optional and is called only by `scripts/export_step.py` or compatibility promotion. Directly running `source/model.py` should be a build/preview smoke check; direct-run STEP export is a warning in ordinary validation and an error for delivery or strict consistency.
+
 ## Direct Export Gate
 
 Use `scripts/export_step.py` when the user is satisfied with the preview and wants usable STEP. The export gate must:
 
 - reject non-empty `review/annotations.json` and non-empty `review/parameter_patch.json`;
-- run current `source/model.py` from the project root;
+- run spec coverage audit and fail on coverage `fail`;
+- import current `source/model.py`, call `load_parameters()` and `build_model()`, then export STEP through `write_step(model, path)` or the build123d exporter;
 - require at least one STEP/STP file under `outputs/step/`;
 - check STEP file existence, hash, readability, and any available BRep/bounding-box signature;
+- update `review/manifest.json` `versions.current.step` to the exported STEP path;
 - write `outputs/step/manifest.json` with `state: "exported"`, source/spec/parameter/review-mesh hashes, STEP hashes, validation summary, and `stale: false`;
 - write or refresh `validation/report.json` after export-level validation passes.
 
@@ -88,10 +101,11 @@ The promotion gate must:
 - reject unordered transitions except `draft_review -> accepted_current -> release_handoff`;
 - reject direct `draft_review -> release_handoff` unless `--allow-skip-accepted` is explicit, then run accepted and release gates in order;
 - reject non-empty `review/annotations.json` and non-empty `review/parameter_patch.json` before accepting a draft;
-- require STEP for every accepted or release promotion, using existing STEP or the current authoring source to generate it;
+- require STEP for every accepted or release promotion, using existing STEP or the same explicit import/build/export hooks as `scripts/export_step.py`;
+- update `review/manifest.json` `versions.current.step` when existing or regenerated STEP is accepted by the promotion gate;
 - write or refresh `outputs/step/manifest.json` as `accepted_current` or `release_handoff` only after the promotion gate owns the phase transition;
 - reject `backend_override` or lingering `spec.backend.override` unless the override is cleared or `--accept-backend-override-reason` records why the exception is accepted;
-- restore the original phase, STEP manifest, and `validation/report.json` on failure.
+- restore the original phase, STEP manifest, `review/manifest.json`, and `validation/report.json` on failure.
 
 For `accepted_current`, run validation with STEP required and write a fresh `validation/report.json` after the phase update passes. For `release_handoff`, first run strict consistency against the accepted current state, then write `release_handoff`, refresh `validation/report.json`, and run strict consistency again so the final report proves the legacy release snapshot. This is retained for compatibility; new daily export/handoff should use `export_step.py` and `create_handoff_package.py`.
 
@@ -122,6 +136,14 @@ The audit checks:
 - Fusion or other non-default current backend exceptions are allowed only when `spec/current.yaml` records `lifecycle.phase: backend_override` plus `backend.override.backend` or `backend.override.name` and `backend.override.reason`.
 
 Use warning findings as handoff blockers when they mean the agent cannot prove current state. Do not silence them by editing reports alone; regenerate, resync, or re-export stale artifacts from authoring truth.
+
+## Review Iteration Gates
+
+Before consuming annotations, run the review annotation clarity audit. High-risk annotations involving holes, clearances, assembly fit, axes, collision/interference, mounting, cutouts, batteries, PCBs, or manufacturing must be clear about target, operation, reference, direction, dimensions, scope, preserve rules, and validation. If a low-risk annotation is missing fields, record the assumption in `validation/current_context.json` or `spec/current.yaml` before modeling.
+
+`scripts/regenerate_from_review.py` must snapshot core review-regeneration files in memory before mutating them. On failure it restores `parameters.yaml`, `review/manifest.json`, `validation/report.json`, `validation/current_context.json`, `review/parameter_patch.json`, and `review/annotations.json`, and reports `transaction.status: "restored"`. It clears consumed review state only after successful validation.
+
+`review/cache/current_mesh.json` may record `provenance` hashes for source, parameters, spec, review manifest, and adapter files. Source, parameter, or adapter drift means the preview is stale. Spec/manifest metadata drift may be reported separately because lifecycle or STEP-pointer changes do not necessarily change preview geometry.
 
 ## Geometry Checks
 
@@ -213,6 +235,8 @@ python3 engineering-3d-modeling/scripts/summarize_model_project.py /path/to/mode
 It should summarize project name/kind/units, source entrypoint, pending annotation and parameter patch counts, review mesh path/hash, STEP state and freshness, preview checkpoint availability, latest validation status/errors/warnings, key parameters, key layout facts, unresolved blockers/questions, and recommended next reads.
 
 The summary must report stale STEP when `outputs/step/manifest.json` says `stale: true` or when recorded freshness hashes no longer match current `spec/current.yaml`, `parameters.yaml`, `source/model.py`, or review mesh hashes. Updating the summary does not make STEP fresh; rerun `scripts/export_step.py` for that.
+
+When no STEP files and no STEP manifest exist, current context should report `step.state: "not_exported"`. This is the normal state for a new draft-review project before user preview confirmation.
 
 ## Feature Registry
 

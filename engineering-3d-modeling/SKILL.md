@@ -10,7 +10,7 @@ description: Use when creating, initializing, modifying, reviewing, validating, 
 This skill turns an engineering CAD request into a maintainable model project, not a one-shot model file. Keep three artifact layers separate:
 
 - Authoring truth: the project brief, `spec/current.yaml`, `parameters.yaml`, build123d source or formula modules, and validation evidence.
-- CAD exchange/delivery output: STEP under `outputs/step/` plus `outputs/step/manifest.json`. A fresh direct export has manifest `state: "exported"` and `stale: false`; later authoring-truth or preview changes mark it stale until `scripts/export_step.py` is rerun.
+- CAD exchange/delivery output: STEP under `outputs/step/` plus `outputs/step/manifest.json` after explicit export. A fresh direct export has manifest `state: "exported"` and `stale: false`; later authoring-truth or preview changes mark it stale until `scripts/export_step.py` is rerun.
 - Review artifacts: `review/index.html`, `review/manifest.json`, `review/cache/`, `review/annotations.json`, and `review/parameter_patch.json`. These are review data, not CAD truth.
 
 Use build123d as the default local CAD backend. Other backends are allowed only when the user explicitly asks for them or an existing project already depends on them.
@@ -29,15 +29,15 @@ Use `references/context-routing.md` for detailed task tags, minimum reads, artif
    - STEP/STP: use as CAD reference or fixed component; do not claim it preserves parametric history.
    - STL/OBJ/mesh: reference-only in V1.
 2. Create or continue exactly one active model or assembly direction. Alternative concepts may be discussed before selection, but only the selected direction becomes the active model project.
-3. For new projects, run `scripts/init_model_project.py`; do not hand-roll the scaffold or review HTML. The script creates `review/index.html` from the bundled template and a project-level `AGENTS.md` to keep future sessions on this skill.
+3. For new projects, run `scripts/init_model_project.py`; do not hand-roll the scaffold or review HTML. The script creates `review/index.html` from the bundled template and a project-level `AGENTS.md` to keep future sessions on this skill. New projects start as `draft_review`: build source and review/preview artifacts first, and do not export STEP until the user confirms the preview or explicitly asks for STEP.
 4. For existing projects, start from project `AGENTS.md`, then `validation/current_context.json` or `scripts/summarize_model_project.py`. Use `references/context-routing.md` task tags to choose the exact next reads instead of loading history by default.
 5. Before build123d generation or validation, run `scripts/check_environment.py --json` with the same Python runtime that will execute `source/model.py`. If build123d or PyYAML is missing, immediately rerun with `--install`; request permission if pip, network, or environment writes are blocked. Do not continue CAD generation while required dependencies are missing.
 6. Before any preview-changing edit, run `scripts/checkpoint_preview_revision.py --reason "..."` or use a workflow script that does it automatically. This saves `checkpoints/preview_previous/` and `validation/preview_revision.json`.
 7. When continuing from HTML review, prefer `scripts/regenerate_from_review.py`. It checkpoints the current visible preview, applies `review/parameter_patch.json`, rebuilds from `source/model.py`, syncs/audits preview sliders, validates the work/review state, marks existing STEP stale, clears consumed review state after success, and refreshes current context where possible. Treat `review/annotations.json` as user-authored requests only; if target, operation, reference, direction, dimensions, scope, preserve rules, or validation are unclear, use the clarity gate in `references/context-routing.md` before modeling.
-8. Generate or modify build123d source from the spec and parameters.
+8. Generate or modify build123d source from the spec and parameters. Running `source/model.py` directly is a build or preview-regeneration smoke path, not the STEP export path.
 9. When the user is satisfied with the preview, export usable STEP directly with `scripts/export_step.py`. This fails if current review patches or annotations are unconsumed, regenerates STEP from current `spec/current.yaml`, `parameters.yaml`, and `source/model.py`, validates the export, and writes a fresh `outputs/step/manifest.json`.
 10. Create a delivery/release bundle only when requested with `scripts/create_handoff_package.py`. Handoff is an optional package action, not a required day-to-day state promotion.
-11. Validate build success, fresh STEP when requested, key dimensions, clearances, assembly relationships, review mesh sanity, part-vs-feature grouping, and strict package consistency where relevant. Use `scripts/validate_model_project.py --require-step` for forced delivery checks and `scripts/audit_project_consistency.py --mode strict` before package creation or release claims.
+11. Validate source interface, spec-to-code coverage, build success, fresh STEP when requested, key dimensions, clearances, assembly relationships, review mesh sanity/provenance, part-vs-feature grouping, and strict package consistency where relevant. Use `scripts/validate_model_project.py --require-step` for forced delivery checks and `scripts/audit_project_consistency.py --mode strict` before package creation or release claims.
 12. Update review artifacts: HTML review surface when available, otherwise a snapshot or review note. Sync only explicit live-preview-bound parameters from `parameters.yaml` into `review/manifest.json` with `scripts/sync_review_parameters.py`, then audit exposed parameters with `scripts/audit_review_parameters.py` when geometry or preview behavior changed. Save parameter patches and annotation records as structured review data.
 
 ## Project Shape
@@ -67,7 +67,7 @@ Complex assemblies may keep `spec/current.yaml` as a root manifest and reference
 - `release_handoff`: legacy release marker; handoff packages are now created by `scripts/create_handoff_package.py`.
 - `backend_override`: temporary non-default backend state, such as Fusion 360 API. Record `backend.override` with backend/name and reason; do not treat this as the default authoring truth shape.
 
-Do not force routine modeling through `accepted_current` or `release_handoff`. `scripts/promote_model_project.py` remains as a compatibility gate for older projects that already use that lifecycle, but the recommended daily path is preview checkpointing, regeneration, direct STEP export, and optional handoff package creation.
+Do not force routine modeling through `accepted_current` or `release_handoff`. Treat them as legacy compatibility labels for old projects. The recommended path is preview checkpointing, regeneration, direct STEP export after preview confirmation, and optional handoff package creation.
 
 ## HTML Review Boundary
 
@@ -106,9 +106,10 @@ Read only the references needed for the task:
 - `scripts/audit_review_parameters.py`: audit `parameters.yaml`, `review/manifest.json`, `source/model.py`, preview mesh cache, and optional preview adapter so stale or non-reactive review parameters are hidden or fail validation.
 - `scripts/audit_project_consistency.py`: audit `spec/current.yaml`, `brief.md`, `parameters.yaml`, `review/manifest.json`, `review/cache/current_mesh.json`, STEP files, `outputs/step/manifest.json`, and `validation/report.json` for current/handoff drift before accepting or handing off a model project.
 - `scripts/checkpoint_preview_revision.py`: save `checkpoints/preview_previous/` plus `validation/preview_revision.json` before a visible preview model change.
+- `scripts/audit_spec_coverage.py`: audit declared spec features, placements, constraints, validation targets, and geometry-impacting parameters against source/registry/layout evidence; write `validation/spec_coverage.json` with `--write`.
 - `scripts/init_model_project.py`: scaffold a lightweight model project.
 - `scripts/begin_model_iteration.py`: optional coarse compatibility safety point that snapshots the whole project under `previous/`, records active iteration metadata, and marks existing STEP stale before a larger modeling attempt.
-- `scripts/export_step.py`: direct daily STEP export from current authoring truth. It blocks pending review data, runs `source/model.py`, writes `outputs/step/manifest.json` with `state: "exported"` and freshness hashes, and writes validation evidence.
+- `scripts/export_step.py`: explicit STEP export from current authoring truth after preview confirmation or a user export request. It blocks pending review data, imports `source/model.py`, calls `load_parameters()` and `build_model()`, writes STEP under `outputs/step/`, writes `outputs/step/manifest.json` with `state: "exported"` and freshness hashes, and writes validation evidence.
 - `scripts/create_handoff_package.py`: optional strict handoff package generator that creates a zip under `outputs/handoff/` from a whitelist of deliverable/reproducible files.
 - `scripts/promote_model_project.py`: compatibility lifecycle promotion gate for old `accepted_current` / `release_handoff` projects. Do not use it as the default daily modeling flow.
 - `scripts/regenerate_from_review.py`: apply saved review parameter patches, checkpoint the previous visible preview, rebuild `source/model.py`, sync and audit review sliders, validate work/review state, mark existing STEP stale, and clear consumed review state after success. `--start-new-iteration` remains available when a coarse `previous/` snapshot is desired.

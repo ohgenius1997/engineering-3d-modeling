@@ -42,6 +42,8 @@
 - 2026-06-20 - Make iteration rollback and STEP state explicit
 - 2026-06-22 - Guard review previews against misleading generic morphs
 - 2026-06-26 - Make preview revisions, direct STEP export, and optional handoff packages the daily CAD flow
+- 2026-06-30 - Separate source build smoke from explicit STEP export
+- 2026-06-30 - Add machine gates for coverage, source contracts, clarity, preview provenance, and regenerate transactions
 
 ## Decision Log
 
@@ -218,3 +220,15 @@
 - Rationale: CAD modeling usually changes through many small visible preview revisions. Requiring `accepted_current -> release_handoff` promotion before STEP export made everyday modeling feel like a lifecycle state machine instead of a product workflow and made rollback too coarse.
 - Alternatives considered: keep `accepted_current`/`release_handoff` as mandatory gates for every usable STEP; rejected because preview satisfaction should be enough to export a fresh CAD exchange file. Use only Git for rollback; rejected because "previous preview" needs to be local, immediate, and independent of repository commits.
 - Consequences: `scripts/regenerate_from_review.py` creates preview checkpoints and marks existing STEP manifests stale before preview-changing work. `scripts/export_step.py` writes `state: "exported"` with freshness hashes and `stale: false`. `scripts/create_handoff_package.py` performs strict consistency and packages a whitelist of reproducible deliverables. `scripts/promote_model_project.py` remains available as a compatibility flow for old accepted/release projects but is no longer the recommended daily path.
+
+### 2026-06-30 - Separate source build smoke from explicit STEP export
+- Decision: Running `source/model.py` directly is a build or preview smoke path and must not be the normal path that writes STEP. Fresh STEP is produced only by `scripts/export_step.py`, which imports the current source, calls `load_parameters()` and `build_model()`, exports STEP, updates `review/manifest.json`, writes the STEP manifest, and refreshes current context.
+- Rationale: First-pass modeling should stop at draft review/HTML preview until the user confirms the model or asks for STEP. Letting starter source or ordinary regeneration write STEP made new projects look deliverable before review.
+- Alternatives considered: keep source CLI writing draft STEP and mark it stale; rejected because file presence still misleads agents and users. Remove `write_step()` from source entirely; rejected because source-local export helpers are still useful as an implementation hook for `export_step.py`.
+- Consequences: New scaffolds do not create STEP files or a STEP manifest. `review/manifest.json` may start with `versions.current.step: null`; `export_step.py` fills it after explicit export. Validators and summaries treat no STEP/no manifest as a normal `not_exported` draft-review state.
+
+### 2026-06-30 - Add machine gates for coverage, source contracts, clarity, preview provenance, and regenerate transactions
+- Decision: Product-level routing rules must be backed by scripts that prove spec coverage, source interface shape, review annotation clarity, preview provenance, and regenerate transaction safety.
+- Rationale: Context routing alone can tell agents what to read, but it cannot prove that every declared feature or geometry parameter reached source, that review feedback is unambiguous, or that a failed regenerate did not leave partial truth changes behind.
+- Alternatives considered: document these as agent checklist items only; rejected because dogfood showed agents can skip or incompletely execute checklist loops. Build a full CAD operation AST; rejected because V1 should keep YAML as authoring intent, not a second CAD implementation.
+- Consequences: `audit_spec_coverage.py`, `validate_model_project.py`, `review_validation.py`, `audit_project_consistency.py`, `summarize_model_project.py`, and `regenerate_from_review.py` share responsibility for surfacing gaps. Coverage warnings remain allowed in draft review but must appear in current context; delivery and strict paths treat source contracts and stale proof more aggressively.

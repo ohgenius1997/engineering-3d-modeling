@@ -83,7 +83,7 @@ Project facts:
 - Short human summary: `brief.md`
 - Structured authoring truth: `spec/current.yaml`, `parameters.yaml`, `source/model.py`, and validation evidence
 - Review artifacts: `review/index.html`, `review/manifest.json`, `review/annotations.json`, `review/parameter_patch.json`, `review/cache/`
-- Direct STEP output: `outputs/step/` plus `outputs/step/manifest.json`
+- Explicit STEP output: `outputs/step/` plus `outputs/step/manifest.json` after export
 - Default one-step rollback: `checkpoints/preview_previous/` plus `validation/preview_revision.json`
 
 Rules:
@@ -157,6 +157,7 @@ review:
 validation:
   report: validation/report.json
   current_context: validation/current_context.json
+  spec_coverage: validation/spec_coverage.json
   feature_registry: validation/feature_registry.json
   layout_report: validation/layout_report.json
 """
@@ -170,11 +171,23 @@ def current_context(name: str, kind: str) -> dict:
         "source": {"entrypoint": "source/model.py"},
         "pending_review": {"annotations": 0, "parameter_patches": 0},
         "review": {"mesh": None},
-        "step": {"state": "draft", "stale": False, "files": []},
+        "step": {"state": "not_exported", "stale": None, "files": [], "export_allowed": True},
         "preview_checkpoint": {"available": False, "path": "checkpoints/preview_previous"},
+        "preview": {"status": "missing"},
         "validation": {"status": "not_run", "errors": [], "warnings": []},
+        "coverage": {
+            "status": "not_run",
+            "feature_gaps": [],
+            "unused_geometry_parameters": [],
+        },
         "key_parameters": [],
         "layout_facts": {},
+        "routing": {
+            "recommended_tags": ["new_model_project", "update_review_preview"],
+            "minimum_next_reads": ["spec/current.yaml", "parameters.yaml", "source/model.py"],
+        },
+        "blockers": [],
+        "assumptions": [],
         "unresolved": {"blockers": [], "questions": []},
         "recommended_next_reads": ["spec/current.yaml", "parameters.yaml", "source/model.py"],
     }
@@ -243,8 +256,9 @@ def model_source_text(slug: str) -> str:
 """build123d source for this model project.
 
 Replace the starter geometry with model-specific construction. Keep the project
-spec and parameters as the authoring contract, and export STEP for accepted or
-handoff states.
+spec and parameters as the authoring contract. Running this file directly is a
+build smoke check; export STEP only through scripts/export_step.py after review
+confirmation.
 """
 
 from __future__ import annotations
@@ -255,7 +269,6 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-STEP_OUTPUT = PROJECT_ROOT / "outputs" / "step" / "{slug}.step"
 os.environ.setdefault("XDG_CACHE_HOME", str(PROJECT_ROOT / "review" / "cache"))
 
 
@@ -325,11 +338,27 @@ def write_step(model, path: Path) -> None:
     build123d_export_step(model, str(path))
 
 
+def model_summary(model) -> dict[str, Any]:
+    summary: dict[str, Any] = {{"type": type(model).__name__}}
+    bounding_box = getattr(model, "bounding_box", None)
+    if callable(bounding_box):
+        try:
+            box = bounding_box()
+            summary["bbox_size"] = [
+                float(getattr(box.size, "X")),
+                float(getattr(box.size, "Y")),
+                float(getattr(box.size, "Z")),
+            ]
+        except Exception:
+            pass
+    return summary
+
+
 def main() -> None:
     params = load_parameters(PROJECT_ROOT / "parameters.yaml")
     model = build_model(params)
-    write_step(model, STEP_OUTPUT)
-    print(f"wrote {{STEP_OUTPUT}}")
+    print("built source/model.py successfully; STEP export is deferred to scripts/export_step.py")
+    print(model_summary(model))
 
 
 if __name__ == "__main__":
@@ -342,7 +371,7 @@ def manifest(name: str, slug: str, kind: str) -> dict:
         "schema": "engineering-3d-modeling.review_manifest.v1",
         "project": {"name": name, "kind": kind, "units": "mm"},
         "versions": {
-            "current": {"step": f"../outputs/step/{slug}.step"},
+            "current": {"source": "../source/model.py", "step": None},
             "previous": None,
         },
         "preview": {"mesh_json": None, "mesh_closed": True},
@@ -384,16 +413,6 @@ def scaffold(project: Path, name: str, kind: str, per_part_step: bool, force: bo
     write_text(project / "spec" / "current.yaml", spec_text(name, slug, kind, per_part_step), force)
     write_text(project / "parameters.yaml", parameters_text(), force)
     write_text(project / "source" / "model.py", model_source_text(slug), force)
-    if force or not (project / iteration_utils.STEP_MANIFEST_REL).exists():
-        iteration_utils.write_step_manifest(
-            project,
-            state="draft",
-            generated_for_phase="draft_review",
-            generated_by="scripts/init_model_project.py",
-            promoted_by=None,
-            stale=False,
-            generated_at=None,
-        )
     write_json(project / "review" / "manifest.json", manifest(name, slug, kind), force)
     write_json(
         project / "review" / "annotations.json",

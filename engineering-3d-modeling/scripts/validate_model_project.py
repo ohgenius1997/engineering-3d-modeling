@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import Counter
 import copy
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import importlib.util
 import json
 import os
@@ -21,6 +23,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import review_validation
+import audit_spec_coverage
 import audit_review_parameters
 import audit_project_consistency
 import iteration_utils
@@ -720,6 +723,123 @@ def source_path_from_spec(project: Path, spec: dict[str, Any] | None) -> Path | 
     return path.resolve()
 
 
+def call_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = call_name(node.value)
+        return f"{parent}.{node.attr}" if parent else node.attr
+    return None
+
+
+def function_calls_export(tree: ast.AST, function_name: str) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call):
+                    name = call_name(child.func)
+                    if name and (name.endswith("write_step") or name.endswith("export_step")):
+                        return True
+    return False
+
+
+def main_guard_calls_export(tree: ast.AST) -> bool:
+    for node in getattr(tree, "body", []):
+        if not isinstance(node, ast.If):
+            continue
+        text = ast.unparse(node.test) if hasattr(ast, "unparse") else ""
+        if "__name__" not in text or "__main__" not in text:
+            continue
+        for child in ast.walk(node):
+            if isinstance(child, ast.Call):
+                name = call_name(child.func)
+                if name and (name == "main" or name.endswith("write_step") or name.endswith("export_step")):
+                    if name == "main":
+                        return function_calls_export(tree, "main")
+                    return True
+    return False
+
+
+def validate_source_interface(
+    project: Path,
+    spec: dict[str, Any] | None,
+    *,
+    strict: bool,
+    errors: list[str],
+    warnings: list[str],
+    checks: list[dict[str, str]],
+) -> dict[str, Any]:
+    source_path = source_path_from_spec(project, spec)
+    report: dict[str, Any] = {
+        "status": "pass",
+        "source": safe_relative(source_path, project) if source_path else None,
+        "warnings": [],
+        "errors": [],
+    }
+    if source_path is None or not source_path.is_file():
+        message = "source/model.py is missing; cannot validate source interface"
+        errors.append(message)
+        report["status"] = "fail"
+        report["errors"].append(message)
+        return report
+
+    try:
+        source_text = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source_text)
+    except Exception as exc:
+        message = f"source/model.py could not be parsed: {exc}"
+        errors.append(message)
+        report["status"] = "fail"
+        report["errors"].append(message)
+        return report
+
+    if main_guard_calls_export(tree):
+        message = "source/model.py direct run appears to export STEP; use scripts/export_step.py for fresh STEP output"
+        if strict:
+            errors.append(message)
+            report["status"] = "fail"
+            report["errors"].append(message)
+        else:
+            warnings.append(message)
+            report["warnings"].append(message)
+    else:
+        checks.append({"check": "source-direct-run-no-step-export", "status": "pass"})
+
+    try:
+        module = load_model_module(source_path)
+    except Exception as exc:
+        message = f"source/model.py could not be imported for interface validation: {exc}"
+        errors.append(message)
+        report["status"] = "fail"
+        report["errors"].append(message)
+        return report
+
+    for name in ["load_parameters", "build_model"]:
+        function = getattr(module, name, None)
+        if not callable(function):
+            message = f"source/model.py must define callable {name}"
+            errors.append(message)
+            report["status"] = "fail"
+            report["errors"].append(message)
+        else:
+            try:
+                inspect.signature(function)
+            except (TypeError, ValueError):
+                pass
+            checks.append({"check": f"source-interface:{name}", "status": "pass"})
+
+    write_step = getattr(module, "write_step", None)
+    if write_step is not None:
+        if not callable(write_step):
+            message = "source/model.py write_step exists but is not callable"
+            errors.append(message)
+            report["status"] = "fail"
+            report["errors"].append(message)
+        else:
+            checks.append({"check": "source-interface:write_step", "status": "pass"})
+    return report
+
+
 def mesh_path_for_snapshot(project: Path, manifest: object, errors: list[str]) -> Path | None:
     if not isinstance(manifest, dict):
         return None
@@ -802,6 +922,27 @@ def append_consistency_audit(
     return report
 
 
+def append_spec_coverage_audit(
+    project: Path,
+    *,
+    strict: bool,
+    errors: list[str],
+    warnings: list[str],
+    checks: list[dict[str, str]],
+) -> dict[str, Any]:
+    report = audit_spec_coverage.audit(project, write=True)
+    checks.append({"check": "spec-coverage-audit", "status": report["status"]})
+    if report["status"] == "fail":
+        errors.extend(f"spec coverage audit: {item}" for item in report.get("errors", []))
+    elif report["status"] == "warn":
+        messages = report.get("warnings", []) or ["spec coverage audit found gaps"]
+        if strict:
+            errors.extend(f"spec coverage audit: {item}" for item in messages)
+        else:
+            warnings.extend(f"spec coverage audit: {item}" for item in messages)
+    return report
+
+
 def validate(
     project: Path,
     require_step: bool | None = None,
@@ -836,6 +977,14 @@ def validate(
             errors.append(f"missing required file: {rel}")
 
     validate_backend_override_record(spec, phase, errors, warnings, checks)
+    source_interface = validate_source_interface(
+        project,
+        spec,
+        strict=bool(step_required or consistency_mode == "strict"),
+        errors=errors,
+        warnings=warnings,
+        checks=checks,
+    )
 
     manifest = load_json(project / "review" / "manifest.json", errors)
     annotations = load_json(project / "review" / "annotations.json", errors)
@@ -960,6 +1109,14 @@ def validate(
         checks,
     )
 
+    spec_coverage_report = append_spec_coverage_audit(
+        project,
+        strict=bool(step_required or consistency_mode == "strict"),
+        errors=errors,
+        warnings=warnings,
+        checks=checks,
+    )
+
     status = "pass" if not errors else "fail"
     snapshot = build_snapshot(
         project,
@@ -981,9 +1138,11 @@ def validate(
         "errors": errors,
         "step_files": [str(path.relative_to(project)) for path in step_files],
         "snapshot": snapshot,
+        "source_interface": source_interface,
         "step_manifest": step_manifest,
         "review_parameter_audit_mode": audit_mode,
         "review_parameter_audit": audit_report,
+        "spec_coverage": spec_coverage_report,
         "consistency_audit_mode": consistency_mode,
         "consistency_audit": consistency_report,
     }

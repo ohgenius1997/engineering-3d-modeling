@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+import re
 from typing import Any
 
 
@@ -17,6 +18,16 @@ SCHEMA_FILES = {
     "annotations": "annotations.schema.json",
     "parameter_patch": "parameter_patch.schema.json",
 }
+
+CLARITY_FIELDS = ["target", "operation", "reference", "direction", "dimensions", "scope", "preserve", "validation"]
+OPERATION_RE = re.compile(r"\b(add|remove|move|resize|cut|fillet|chamfer|align|offset|avoid|preserve|keep|change|adjust|increase|decrease|widen|narrow|raise|lower)\b", re.IGNORECASE)
+DIRECTION_RE = re.compile(r"\b(x|y|z|normal|radial|axial|inward|outward|left|right|up|down|toward|away|clockwise|counterclockwise)\b", re.IGNORECASE)
+DIMENSION_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:mm|cm|m|in|inch|deg|degree|degrees)?", re.IGNORECASE)
+SCOPE_RE = re.compile(r"\b(selected|this|that|all|each|every|part|whole|global|same|both)\b", re.IGNORECASE)
+PRESERVE_RE = re.compile(r"\b(preserve|keep|do not|don't|without changing|leave|maintain)\b", re.IGNORECASE)
+VALIDATION_RE = re.compile(r"\b(validate|check|fit|clearance|collision|align|measure|verify|test)\b", re.IGNORECASE)
+REFERENCE_RE = re.compile(r"\b(edge|face|axis|ref|reference|from|to|against|with|hole|slot|mount|component|part)\b", re.IGNORECASE)
+HIGH_RISK_RE = re.compile(r"\b(hole|clearance|gap|fit|align|axis|collision|interference|mount|pcb|battery|screw|thread|cutout|opening|manufactur|bearing|gear)\b", re.IGNORECASE)
 
 
 def load_json(path: Path) -> Any:
@@ -143,6 +154,75 @@ def validate_annotations_schema(data: Any) -> list[str]:
 
 def validate_parameter_patch_schema(data: Any) -> list[str]:
     return validate_json_schema(data, load_schema("parameter_patch"))
+
+
+def annotation_text(annotation: dict[str, Any]) -> str:
+    value = annotation.get("text")
+    return value if isinstance(value, str) else ""
+
+
+def annotation_missing_clarity(annotation: dict[str, Any]) -> list[str]:
+    text = annotation_text(annotation)
+    target = annotation.get("target")
+    missing = []
+    if not isinstance(target, dict):
+        missing.append("target")
+    if not OPERATION_RE.search(text):
+        missing.append("operation")
+    if not (isinstance(target, dict) and target.get("ref")) and not REFERENCE_RE.search(text):
+        missing.append("reference")
+    if not (isinstance(target, dict) and target.get("normal")) and not DIRECTION_RE.search(text):
+        missing.append("direction")
+    if not DIMENSION_RE.search(text):
+        missing.append("dimensions")
+    if not SCOPE_RE.search(text):
+        missing.append("scope")
+    if not PRESERVE_RE.search(text):
+        missing.append("preserve")
+    if not VALIDATION_RE.search(text):
+        missing.append("validation")
+    return missing
+
+
+def audit_annotation_clarity(annotations_doc: dict[str, Any]) -> dict[str, Any]:
+    report: dict[str, Any] = {
+        "schema": "engineering-3d-modeling.annotation_clarity_audit.v1",
+        "status": "pass",
+        "items": [],
+        "warnings": [],
+        "errors": [],
+    }
+    annotations = annotations_doc.get("annotations")
+    if not isinstance(annotations, list):
+        report["status"] = "fail"
+        report["errors"].append("review/annotations.json annotations must be a list")
+        return report
+    for index, annotation in enumerate(annotations):
+        if not isinstance(annotation, dict):
+            continue
+        if annotation.get("status") and annotation.get("status") != "open":
+            continue
+        missing = annotation_missing_clarity(annotation)
+        text = annotation_text(annotation)
+        high_risk = bool(HIGH_RISK_RE.search(text))
+        item = {
+            "id": annotation.get("id", index),
+            "status": "fail" if high_risk and missing else ("warn" if missing else "pass"),
+            "high_risk": high_risk,
+            "missing": missing,
+        }
+        report["items"].append(item)
+        if item["status"] == "fail":
+            report["errors"].append(
+                f"annotation {item['id']} is high-risk and unclear: missing {', '.join(missing)}"
+            )
+        elif item["status"] == "warn":
+            report["warnings"].append(f"annotation {item['id']} has low-risk clarity gaps: {', '.join(missing)}")
+    if report["errors"]:
+        report["status"] = "fail"
+    elif report["warnings"]:
+        report["status"] = "warn"
+    return report
 
 
 def load_yaml():

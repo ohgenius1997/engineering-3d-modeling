@@ -266,6 +266,45 @@ def step_files(project: Path) -> list[Path]:
     return sorted(root.glob("*.step")) + sorted(root.glob("*.stp"))
 
 
+def review_relative_path(project: Path, path: Path) -> str:
+    review_dir = project / "review"
+    try:
+        return str(path.resolve().relative_to(review_dir.resolve()))
+    except ValueError:
+        try:
+            rel_to_project = path.resolve().relative_to(project.resolve())
+            return "../" + str(rel_to_project)
+        except ValueError:
+            return str(path)
+
+
+def update_review_manifest_current(
+    project: Path,
+    *,
+    source_path: Path | None = None,
+    step_path: Path | None = None,
+) -> bool:
+    manifest_path = project / "review" / "manifest.json"
+    try:
+        manifest = load_json_doc(manifest_path)
+    except RuntimeError:
+        return False
+    versions = manifest.setdefault("versions", {})
+    if not isinstance(versions, dict):
+        versions = {}
+        manifest["versions"] = versions
+    current = versions.setdefault("current", {})
+    if not isinstance(current, dict):
+        current = {}
+        versions["current"] = current
+    if source_path is not None:
+        current["source"] = review_relative_path(project, source_path)
+    if step_path is not None:
+        current["step"] = review_relative_path(project, step_path)
+    write_json_doc(manifest_path, manifest)
+    return True
+
+
 def step_manifest_path(project: Path) -> Path:
     return project / STEP_MANIFEST_REL
 

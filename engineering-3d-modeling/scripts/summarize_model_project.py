@@ -153,7 +153,41 @@ def review_mesh_summary(project: Path, manifest: dict[str, Any]) -> dict[str, An
     if path.is_file():
         summary["sha256"] = sha256(path)
         summary["modified_at"] = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat().replace("+00:00", "Z")
+        mesh = load_json(path, {})
+        provenance = mesh.get("provenance") if isinstance(mesh.get("provenance"), dict) else {}
+        if provenance:
+            summary["provenance"] = provenance
     return summary
+
+
+def preview_status(project: Path, review_mesh: dict[str, Any]) -> dict[str, Any]:
+    if not review_mesh.get("path"):
+        return {"status": "missing", "stale_reasons": []}
+    if not review_mesh.get("exists"):
+        return {"status": "missing", "stale_reasons": ["declared mesh is missing"]}
+    provenance = review_mesh.get("provenance")
+    if not isinstance(provenance, dict) or not provenance:
+        return {"status": "unknown", "stale_reasons": ["preview mesh provenance missing"]}
+    comparisons = {
+        "spec_hash": sha256(project / "spec" / "current.yaml"),
+        "parameters_hash": sha256(project / "parameters.yaml"),
+        "source_hash": sha256(project / "source" / "model.py"),
+        "manifest_hash": sha256(project / "review" / "manifest.json"),
+    }
+    adapter = provenance.get("adapter_path")
+    if isinstance(adapter, str) and adapter:
+        comparisons["adapter_hash"] = sha256(project / "review" / adapter)
+    stale = []
+    metadata = []
+    for key, current in comparisons.items():
+        recorded = provenance.get(key)
+        if recorded and current and str(recorded).lower() != str(current).lower():
+            if key in {"source_hash", "parameters_hash", "adapter_hash"}:
+                stale.append(key)
+            else:
+                metadata.append(key)
+    status = "stale" if stale else "current"
+    return {"status": status, "stale_reasons": stale, "metadata_drift": metadata, "provenance": provenance}
 
 
 def step_summary(project: Path, mesh_hash: str | None) -> dict[str, Any]:
@@ -185,6 +219,8 @@ def step_summary(project: Path, mesh_hash: str | None) -> dict[str, Any]:
     if summary["state"] is None and step_files:
         summary["state"] = "files_without_manifest"
         summary["stale"] = True
+    elif summary["state"] is None:
+        summary["state"] = "not_exported"
     return summary
 
 
@@ -206,6 +242,26 @@ def validation_summary(project: Path) -> dict[str, Any]:
         "status": report.get("status", "not_run"),
         "errors": report.get("errors", []) if isinstance(report.get("errors", []), list) else [],
         "warnings": report.get("warnings", []) if isinstance(report.get("warnings", []), list) else [],
+    }
+
+
+def coverage_summary(project: Path) -> dict[str, Any]:
+    data = load_json(project / "validation" / "spec_coverage.json", {})
+    if not data:
+        return {"status": "not_run", "feature_gaps": [], "unused_geometry_parameters": []}
+    if data.get("_error"):
+        return {"status": "unknown", "feature_gaps": [], "unused_geometry_parameters": [], "error": data.get("_error")}
+    return {
+        "status": data.get("status", "unknown"),
+        "feature_gaps": data.get("feature_gaps", []) if isinstance(data.get("feature_gaps", []), list) else [],
+        "unused_geometry_parameters": data.get("unused_geometry_parameters", [])
+        if isinstance(data.get("unused_geometry_parameters", []), list)
+        else [],
+        "placement_gaps": data.get("placement_gaps", []) if isinstance(data.get("placement_gaps", []), list) else [],
+        "constraint_gaps": data.get("constraint_gaps", []) if isinstance(data.get("constraint_gaps", []), list) else [],
+        "validation_target_gaps": data.get("validation_target_gaps", [])
+        if isinstance(data.get("validation_target_gaps", []), list)
+        else [],
     }
 
 
@@ -237,11 +293,46 @@ def recommended_reads(context: dict[str, Any]) -> list[str]:
         reads.extend(["review/parameter_patch.json", "parameters.yaml", "review/manifest.json"])
     if context["validation"]["status"] == "fail":
         reads.extend(["validation/report.json", "spec/current.yaml", "parameters.yaml", "source/model.py"])
+    if context["coverage"].get("status") in {"warn", "fail"}:
+        reads.extend(["validation/spec_coverage.json", "spec/current.yaml", "parameters.yaml", "source/model.py"])
     if context["step"].get("stale"):
         reads.extend(["outputs/step/manifest.json", "spec/current.yaml", "parameters.yaml", "source/model.py"])
     if not pending["annotations"] and not pending["parameter_patches"] and context["validation"]["status"] != "fail":
         reads.extend(["spec/current.yaml", "parameters.yaml", "source/model.py"])
     return list(dict.fromkeys(reads))
+
+
+def routing_summary(context: dict[str, Any]) -> dict[str, Any]:
+    tags = ["continue_existing_project"]
+    pending = context["pending_review"]
+    if pending["annotations"] or pending["parameter_patches"]:
+        tags.append("consume_review_feedback")
+    if context["coverage"].get("status") in {"warn", "fail", "not_run"}:
+        tags.append("spec_coverage_audit")
+    if context["preview"].get("status") in {"stale", "missing", "unknown"}:
+        tags.append("update_review_preview")
+    if context["step"].get("stale") or context["step"].get("state") == "not_exported":
+        tags.append("step_export")
+    if context["validation"].get("status") == "fail":
+        tags.append("validation_failure")
+    return {
+        "recommended_tags": list(dict.fromkeys(tags)),
+        "minimum_next_reads": recommended_reads(context),
+    }
+
+
+def blockers(context: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    pending = context["pending_review"]
+    if pending["annotations"]:
+        out.append("review/annotations.json contains pending annotations")
+    if pending["parameter_patches"]:
+        out.append("review/parameter_patch.json contains pending parameter patches")
+    if context["validation"].get("status") == "fail":
+        out.append("validation/report.json status is fail")
+    if context["coverage"].get("status") == "fail":
+        out.append("validation/spec_coverage.json status is fail")
+    return out
 
 
 def summarize(project: Path) -> dict[str, Any]:
@@ -255,6 +346,8 @@ def summarize(project: Path) -> dict[str, Any]:
     units = yaml_scalar(spec_text, ["project", "units"]) or project_info.get("units")
     source_entrypoint = yaml_scalar(spec_text, ["source", "entrypoint"]) or "source/model.py"
     review_mesh = review_mesh_summary(project, manifest)
+    preview = preview_status(project, review_mesh)
+    coverage = coverage_summary(project)
     context = {
         "schema": SCHEMA,
         "generated_at": utc_now(),
@@ -266,12 +359,21 @@ def summarize(project: Path) -> dict[str, Any]:
         },
         "review": {"mesh": review_mesh},
         "step": step_summary(project, review_mesh.get("sha256") if isinstance(review_mesh.get("sha256"), str) else None),
+        "preview": preview,
         "preview_checkpoint": preview_checkpoint_summary(project),
         "validation": validation_summary(project),
+        "coverage": coverage,
         "key_parameters": parameter_summaries(params_text),
         "layout_facts": layout_facts(project),
         "unresolved": existing_unresolved(project),
     }
+    context["step"]["export_allowed"] = not (
+        context["pending_review"]["annotations"] or context["pending_review"]["parameter_patches"]
+    )
+    context["routing"] = routing_summary(context)
+    context["blockers"] = blockers(context)
+    previous = load_json(project / "validation" / "current_context.json", {})
+    context["assumptions"] = previous.get("assumptions", []) if isinstance(previous.get("assumptions", []), list) else []
     context["recommended_next_reads"] = recommended_reads(context)
     return context
 
@@ -295,7 +397,9 @@ def human_summary(context: dict[str, Any]) -> str:
         f"Source: {context['source'].get('entrypoint')}",
         f"Pending review: {pending.get('annotations', 0)} annotation(s), {pending.get('parameter_patches', 0)} parameter patch(es)",
         f"Review mesh: {mesh.get('path') or 'none'}",
+        f"Preview: status={context.get('preview', {}).get('status')}",
         f"STEP: state={step.get('state') or 'none'}, stale={step.get('stale')}, files={len(step.get('files', []))}",
+        f"Coverage: {context.get('coverage', {}).get('status')}",
         f"Preview checkpoint: {'available' if context['preview_checkpoint'].get('available') else 'missing'}",
         f"Validation: {validation.get('status')} ({len(validation.get('errors', []))} error(s), {len(validation.get('warnings', []))} warning(s))",
     ]
@@ -310,6 +414,9 @@ def human_summary(context: dict[str, Any]) -> str:
     questions = unresolved.get("questions", [])
     if blockers or questions:
         lines.append(f"Unresolved: {len(blockers)} blocker(s), {len(questions)} question(s)")
+    routing = context.get("routing", {})
+    if isinstance(routing, dict) and routing.get("recommended_tags"):
+        lines.append("Recommended tags: " + ", ".join(routing.get("recommended_tags", [])))
     lines.append("Recommended next reads: " + ", ".join(context.get("recommended_next_reads", [])))
     return "\n".join(lines)
 

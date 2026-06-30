@@ -19,15 +19,15 @@
 - Domain: engineering 3D model generation
 - Profile: standard
 - Dynamic memory: agentmemory
-- Current phase: context-routing and model-project documentation optimization implemented on `dev-full`
+- Current phase: P2 caller-centered optimization proposal documented on `dev-full`
 - Current branch: dev-full
-- Latest conclusion: The skill now has `references/context-routing.md` for global routing, composable task tags, artifact boundaries, controlled modeling intent templates, and the review annotation clarity gate. New scaffolds keep project `AGENTS.md` high-level, generate a short `brief.md`, initialize structured `spec/current.yaml` sections, and create `validation/current_context.json`. `scripts/summarize_model_project.py` provides the existing-project continuation summary, and `regenerate_from_review.py` refreshes current context after successful review regeneration.
-- Next step: decide separately which public-safe skill changes should be synced to `main`; do not merge or push without explicit user request.
+- Latest conclusion: P0/P1 implementation remains complete on `dev-full`; the next optimization direction is documented in `docs/caller-centered-skill-optimization-plan.md`, focused on making `validation/current_context.json` the caller-facing control plane for low-token routing, parameter/review state, ready states, risk escalation, and gate planning.
+- Next step: start a new implementation session that first audits the current repo against `docs/caller-centered-skill-optimization-plan.md`, adjusts the plan where the existing code suggests a better path, then implements incrementally; decide separately which public-safe skill changes should be synced to `main`, and do not merge or push without explicit user request.
 - Blockers: no functional blocker.
-- Active risks: keep controlled modeling intent templates as intake guidance rather than duplicate CAD truth; when syncing installed copies later, avoid editing `/Users/bytedance/.codex/skills` or `/Users/bytedance/.agents/skills` without explicit permission.
+- Active risks: legacy `promote_model_project.py` still exists for old accepted/release projects and should remain out of the default path; when syncing installed copies later, avoid editing `/Users/bytedance/.codex/skills` or `/Users/bytedance/.agents/skills` without explicit permission.
 
 ## Handoff
-- Last completed: implemented the context-routing/model-project documentation optimization on `dev-full`.
-- In progress: review and decide public-safe sync scope for `main`.
-- Validation done: `python3 engineering-3d-modeling/scripts/check_environment.py --json`; `python3 engineering-3d-modeling/scripts/quick_validate.py engineering-3d-modeling`; `python3 -m unittest discover -s engineering-3d-modeling/tests` (rerun outside sandbox because localhost binding is required); `git diff --check`.
+- Last completed: documented the caller-centered P2 optimization proposal for a future implementation session.
+- In progress: no active implementation.
+- Validation done: `check_environment.py --json`, `quick_validate.py engineering-3d-modeling`, full unittest discovery, and `git diff --check` passed for P0/P1 safeguards.
 - Known risks: `experiments/` remains an unrelated untracked directory and should not be touched by this workstream.

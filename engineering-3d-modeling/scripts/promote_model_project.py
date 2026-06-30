@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 from typing import Any
@@ -25,6 +24,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import audit_project_consistency
+import export_step as export_step_script
 import iteration_utils
 import validate_model_project
 
@@ -230,12 +230,18 @@ def ensure_step_available(
 ) -> bool:
     existing = step_files(project)
     if existing and not rebuild_step:
+        source_path = validate_model_project.source_path_from_spec(project, spec)
+        expected_step = export_step_script.assembly_step_path(project, spec)
+        current_step = expected_step if expected_step.is_file() else existing[0]
+        if source_path is not None:
+            iteration_utils.update_review_manifest_current(project, source_path=source_path, step_path=current_step)
         add_step(
             report,
             "step-output",
             "pass",
             mode="existing",
             step_files=[safe_relative(path, project) for path in existing],
+            review_manifest_step=iteration_utils.review_relative_path(project, current_step),
         )
         return True
 
@@ -249,30 +255,47 @@ def ensure_step_available(
         )
         return False
 
-    result = subprocess.run(
-        [python_executable, str(source_path)],
-        cwd=str(project),
-        capture_output=True,
-        text=True,
-    )
+    output_path = export_step_script.assembly_step_path(project, spec)
+    if python_executable != sys.executable:
+        report["warnings"].append(
+            "--python is retained for compatibility; promote_model_project.py now imports source/model.py in the current interpreter. "
+            "Run this script with the desired Python executable instead."
+        )
+    try:
+        build_export = export_step_script.build_and_export_step(project, source_path, output_path)
+    except Exception as exc:
+        add_step(
+            report,
+            "build-and-export-step",
+            "fail",
+            source=safe_relative(source_path, project),
+            output=safe_relative(output_path, project),
+            message=str(exc),
+        )
+        report["errors"].append(f"current authoring source failed while exporting STEP: {exc}")
+        return False
+
     produced = step_files(project)
-    status = "pass" if result.returncode == 0 and produced else "fail"
+    status = "pass" if produced else "fail"
     add_step(
         report,
-        "build-source",
+        "build-and-export-step",
         status,
-        command=[python_executable, safe_relative(source_path, project)],
-        returncode=result.returncode,
+        source=build_export["source"],
+        output=build_export["output"],
+        model_type=build_export["model_type"],
         step_files=[safe_relative(path, project) for path in produced],
-        stdout=result.stdout[-4000:] if result.stdout else "",
-        stderr=result.stderr[-4000:] if result.stderr else "",
     )
-    if result.returncode != 0:
-        report["errors"].append("current authoring source failed while generating STEP")
-        return False
     if not produced:
-        report["errors"].append("current authoring source ran but produced no STEP/STP under outputs/step")
+        report["errors"].append("current authoring source exported no STEP/STP under outputs/step")
         return False
+    if iteration_utils.update_review_manifest_current(project, source_path=source_path, step_path=output_path):
+        add_step(
+            report,
+            "update-review-manifest-step",
+            "pass",
+            step_path=iteration_utils.review_relative_path(project, output_path),
+        )
     return True
 
 
@@ -495,6 +518,7 @@ def promote_mutable(
     original_spec_text = read_optional_text(spec_path)
     original_report_text = read_optional_text(report_path)
     original_step_manifest_text = read_optional_text(project / iteration_utils.STEP_MANIFEST_REL)
+    original_review_manifest_text = read_optional_text(project / "review" / "manifest.json")
     previous_phase = current_phase
     written: set[str] = set()
 
@@ -508,6 +532,8 @@ def promote_mutable(
                 rebuild_step=rebuild_step,
             ):
                 raise RuntimeError("STEP preflight failed")
+            if read_optional_text(project / "review" / "manifest.json") != original_review_manifest_text:
+                written.add("review/manifest.json")
 
             if phase == "release_handoff":
                 if not run_accepted_strict_consistency(project, report):
@@ -559,6 +585,7 @@ def promote_mutable(
         restore_file(spec_path, original_spec_text)
         restore_file(report_path, original_report_text)
         restore_file(project / iteration_utils.STEP_MANIFEST_REL, original_step_manifest_text)
+        restore_file(project / "review" / "manifest.json", original_review_manifest_text)
         report["status"] = "fail"
         report["final_phase"] = report["initial_phase"]
         report["written"] = []
@@ -567,7 +594,12 @@ def promote_mutable(
             "rollback",
             "pass",
             reason=str(exc),
-            restored=["spec/current.yaml", "validation/report.json", iteration_utils.STEP_MANIFEST_REL],
+            restored=[
+                "spec/current.yaml",
+                "validation/report.json",
+                iteration_utils.STEP_MANIFEST_REL,
+                "review/manifest.json",
+            ],
         )
         return report
 

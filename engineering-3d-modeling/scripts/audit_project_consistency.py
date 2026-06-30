@@ -661,6 +661,55 @@ def compare_mesh_snapshot(
         return mesh_path, None
     checks.append({"check": "preview-mesh-json", "status": "pass", "path": safe_relative(mesh_path, project)})
 
+    provenance = mesh.get("provenance")
+    if isinstance(provenance, dict) and provenance:
+        comparisons = {
+            "spec_hash": file_sha256(project / "spec" / "current.yaml"),
+            "parameters_hash": file_sha256(project / "parameters.yaml"),
+            "source_hash": file_sha256(project / "source" / "model.py"),
+            "manifest_hash": file_sha256(project / "review" / "manifest.json"),
+        }
+        adapter_path = provenance.get("adapter_path")
+        if isinstance(adapter_path, str) and adapter_path:
+            comparisons["adapter_hash"] = file_sha256(project / "review" / adapter_path)
+        stale_keys = []
+        metadata_keys = []
+        for key, current_hash in comparisons.items():
+            recorded_hash = provenance.get(key)
+            if recorded_hash and current_hash and str(recorded_hash).lower() != str(current_hash).lower():
+                if key in {"source_hash", "parameters_hash", "adapter_hash"}:
+                    stale_keys.append(key)
+                else:
+                    metadata_keys.append(key)
+        if stale_keys:
+            add_issue(
+                issues,
+                severity_for_current(phase, mode),
+                "preview_provenance_stale",
+                "review/cache current mesh provenance is stale relative to current authoring truth",
+                stale_keys=stale_keys,
+                mesh=safe_relative(mesh_path, project),
+            )
+        elif metadata_keys:
+            add_issue(
+                issues,
+                "warning",
+                "preview_provenance_metadata_drift",
+                "review/cache current mesh provenance metadata differs, but geometry source hashes still match",
+                stale_keys=metadata_keys,
+                mesh=safe_relative(mesh_path, project),
+            )
+        else:
+            checks.append({"check": "preview-mesh-provenance", "status": "pass", "path": safe_relative(mesh_path, project)})
+    else:
+        add_issue(
+            issues,
+            "warning" if mode != "strict" else "error",
+            "preview_provenance_missing",
+            "review/cache current mesh has no provenance hashes; cannot prove preview freshness",
+            mesh=safe_relative(mesh_path, project),
+        )
+
     source = mesh.get("source")
     if isinstance(source, str):
         if is_legacy_fusion_text(source) and not override_allowed:

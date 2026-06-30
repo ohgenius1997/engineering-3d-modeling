@@ -24,8 +24,10 @@ def write_step(model, path):
 def main():
     params = load_parameters(...)
     model = build_model(params)
-    write_step(model, ...)
+    print(build_summary(model))
 ```
+
+Running `source/model.py` directly should be a build or preview smoke check. It must not be the normal path that writes `outputs/step/*.step`; `scripts/export_step.py` imports `load_parameters()`, `build_model()`, and `write_step()` when the user confirms the preview or explicitly asks for STEP.
 
 For assemblies, separate:
 
